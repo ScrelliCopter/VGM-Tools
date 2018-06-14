@@ -1,0 +1,16 @@
+**** ADPCM to PCM converter v 1.01
+
+USAGE: adpcm <InputFile.pcm> <OutputFile.wav>
+
+By MARTINEZ Fabrice aka SNK of SUPREMACY
+
+
+
+--(ADPCM.diz.txt)--
+
+ ADPCM To WAV Converter 
+This simple utility converts ADPCM files from NeoGeo cartridge systems 
+(*_v?.rom) or NeoGeo CD systems (*.PCM). This tool converts ADPCM A type 
+samples (99% of the samples), ADPCM B type samples will sound distorted... 
+Get it here
+ 
