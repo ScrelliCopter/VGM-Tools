@@ -23,7 +23,7 @@
 '''
 
 import os
-import subprocess;
+import subprocess
 import pathlib
 import struct
 import hashlib
@@ -140,7 +140,9 @@ def readsmp(f, ofs, idx):
 	smp.data = f.read(smp.length * 2)
 
 	# Compute hash of data.
-	h = hashlib.md5(struct.pack("<pII", smp.data, smp.loopBeg, smp.loopEnd));
+	#FIXME: This actually generates a butt ton of collisions...
+	# there's got to be a better way!
+	h = hashlib.md5(struct.pack("<pII", smp.data, smp.loopBeg, smp.loopEnd))
 	smp.hash = h.hexdigest()
 
 	return smp
@@ -166,24 +168,24 @@ def readit(path, outpath):
 		if insNum > 256: return
 		if patNum > 256: return
 
-		smpOfsTable = 0xC0 + ordNum + insNum * 4;
+		smpOfsTable = 0xC0 + ordNum + insNum * 4
 
 		for i in range(0, smpNum):
 			f.seek(smpOfsTable + i * 4)
 			smpOfs = int.from_bytes(f.read(4), byteorder="little", signed=False)
 			smp = readsmp(f, smpOfs, i + 1)
 			if smp != None:
-				outwav = os.path.join(outpath, smp.hash + ".wav");
+				outwav = os.path.join(outpath, smp.hash + ".wav")
 				if not os.path.isfile(outwav):
 					pathlib.Path(outpath).mkdir(parents=True, exist_ok=True)
-					writesmp(smp, outwav);
+					writesmp(smp, outwav)
 
 def scanit(srcPath, dstPath):
 	for directory, subdirectories, files in os.walk(srcPath):
 		for file in files:
 			if file.endswith(".it"):
 				path = os.path.join(directory, file)
-				outpath = dstPath + path[len(srcPath):-len(file)];
+				outpath = dstPath + path[len(srcPath):-len(file)]
 				readit(path, outpath)
 
 def scanspc(srcPath, dstPath):
@@ -201,8 +203,8 @@ def scanspc(srcPath, dstPath):
 				itpath = os.path.join(dstPath + directory[len(srcPath):], file[:-3] + "it")
 				if not os.path.isfile(itpath):
 					path = os.path.join(directory, file)
-					subprocess.call([SPC2IT, path]);
-					path = path[:-3] + "it";
+					subprocess.call([SPC2IT, path])
+					path = path[:-3] + "it"
 					if os.path.isfile(path):
 						os.rename(path, itpath)
 
