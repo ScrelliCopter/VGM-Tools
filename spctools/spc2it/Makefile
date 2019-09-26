@@ -29,10 +29,13 @@ all: $(TARGET)
 install: $(TARGET)
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
 	cp $< $(DESTDIR)$(PREFIX)/bin/$(TARGET)
+	mkdir -p $(DESTDIR)$(PREFIX)/share/man/man1/
+	cp spc2it.1 $(DESTDIR)$(PREFIX)/share/man/man1/
 	
 .PHONY: uninstall
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/$(TARGET)
+	rm -f $(DESTDIR)$(PREFIX)/share/man/man1/spc2it.1
 
 .PHONY: clean
 clean:
