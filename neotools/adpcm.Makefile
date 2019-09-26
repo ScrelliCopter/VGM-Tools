@@ -23,12 +23,12 @@ OBJECT := $(SOURCE:%.c=%.o)
 all: $(TARGET)
 
 $(TARGET): $(OBJECT)
-	    $(LD) $(CFLAGS) $(LDFLAGS) $^ -o $@
+		$(LD) $(CFLAGS) $(LDFLAGS) $^ -o $@
 
 %.o: %.c
-	    $(CC) $(CFLAGS) -c $< -o $@
+		$(CC) $(CFLAGS) -c $< -o $@
 
 # Rules to manage files
 .PHONY: clean
 clean:
-	    rm -f $(TARGET) $(OBJECT)
+		rm -f $(TARGET) $(OBJECT)
