@@ -1,70 +1,34 @@
-# Standard makefile to use as a base for DJGPP projects
+# Standard makefile to use as a base for DJGPP projects (not anymore lol)
 # By MARTINEZ Fabrice aka SNK of SUPREMACY
 
 # Programs to use during make
-AR = ar
-CC = gcc
-LD = gcc
-ASM = nasm
-PACKER = upx
+LD := $(CC)
 
-# Flags for debugging
-#DEBUG=1
-#SYMBOLS=1
+TARGET := adpcm
+SOURCE := adpcm.c
 
 # Flags for compilation
-ASMFLAGS = -f coff
-ifdef SYMBOLS
-CFLAGS = -o -mpentium -Wall -Werror -g
-LDFLAGS = -s
-else
-CFLAGS = -fomit-frame-pointer -O3 -mpentium -Werror -Wall \
+CFLAGS := -fomit-frame-pointer -O3 -Werror -Wall \
 	-W -Wno-sign-compare -Wno-unused \
 	-Wpointer-arith -Wbad-function-cast -Wcast-align -Waggregate-return \
 	-pedantic \
 	-Wshadow \
 	-Wstrict-prototypes
-LDFLAGS =
-endif
-CDEFS =
-ASMDEFS =
+LDFLAGS := -lm
 
 # Object files
-MAINOBJS =
-
-# Library files
-MAINLIBS = obj/adpcm.a
+OBJECT := $(SOURCE:%.c=%.o)
 
 # Make rules
-all: adpcm.exe
+all: $(TARGET)
 
-adpcm.exe:	$(MAINOBJS) $(MAINLIBS)
-		$(LD) $(LDFLAGS) $(MAINOBJS) $(MAINLIBS) -o $@
+$(TARGET): $(OBJECT)
+	    $(LD) $(CFLAGS) $(LDFLAGS) $^ -o $@
 
-src/%.asm:
-
-obj/%.o:	src/%.c
-		$(CC) $(CDEFS) $(CFLAGS) -c $< -o $@
-
-obj/%.oa:	src/%.asm
-		$(ASM) -o $@ $(ASMFLAGS) $(ASMDEFS) $<
-
-obj/%.a:
-		$(AR) cr $@ $^
+%.o: %.c
+	    $(CC) $(CFLAGS) -c $< -o $@
 
 # Rules to manage files
-pack:		adpcm.exe
-		$(PACKER) adpcm.exe
-
-mkdir:
-		md obj
-
+.PHONY: clean
 clean:
-		del obj\*.o
-		del obj\*.a
-		del obj\*.oa
-		del *.exe
-
-# Rules to make libraries
-obj/adpcm.a:	obj/adpcm.o
-# obj/decode.oa \
+	    rm -f $(TARGET) $(OBJECT)

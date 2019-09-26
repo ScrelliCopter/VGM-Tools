@@ -4,7 +4,7 @@ CFLAGS = -O3
 SRC = .
 OBJ = .
 
-OUT_OBJ = $(OBJ)/adpcmb.exe
+OUT_OBJ = $(OBJ)/adpcmb
 
 all:	$(OUT_OBJ)
 

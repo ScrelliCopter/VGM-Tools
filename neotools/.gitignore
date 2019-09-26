@@ -4,3 +4,7 @@
 *.log
 *.pcm
 *.wav
+
+*.o
+adpcm
+adpcmb

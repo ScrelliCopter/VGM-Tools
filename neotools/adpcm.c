@@ -1,8 +1,6 @@
-#include <process.h>
 #include <stdio.h>
-#include <mem.h>
+#include <stdlib.h>
 #include <math.h>
-#include <io.h>
 
 #define BUFFER_SIZE 1024*256
 #define ADPCMA_VOLUME_RATE 1
@@ -70,8 +68,11 @@ int	main(int argc, char *argv[])
 	}
 
 	adpcm_init();
-	
-	Filelen = filelength(fileno(Fp1));
+
+	fseek(Fp1, 0, SEEK_END);
+	Filelen = ftell(Fp1);
+	fseek(Fp1, 0, SEEK_SET);
+
 	*((unsigned int*)(&RiffWave[4])) = Filelen*4 + 0x2C;
 	*((unsigned int*)(&RiffWave[0x28])) = Filelen*4;
 	
