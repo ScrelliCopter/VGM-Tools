@@ -162,7 +162,7 @@ def readit(path, outpath):
 		smpNum = int.from_bytes(f.read(2), byteorder="little", signed=False)
 		patNum = int.from_bytes(f.read(2), byteorder="little", signed=False)
 
-		# Cus spc2it has a tendancy to produce corrupted files...
+		# Cus spc2it has a tendency to produce corrupted files...
 		if ordNum > 1024: return
 		if smpNum > 4000: return
 		if insNum > 256: return
