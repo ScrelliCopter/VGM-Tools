@@ -1,7 +1,8 @@
-_obj
+obj/
+build/
 spc2it
-.DS_Store
-Thumbs.db
+*.exe
 *.spc
 *.it
-lol
+.DS_Store
+Thumbs.db
