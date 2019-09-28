@@ -25,85 +25,78 @@
 #include <vector>
 #include <cstdint>
 
-void DecodeSample ( std::ifstream& a_file, std::vector<uint8_t>& a_out )
+void DecodeSample(std::ifstream& a_file, std::vector<uint8_t>& a_out)
 {
 	// Set up output vector.
 	uint32_t sampLen = 0;
-	a_file.read ( (char*)&sampLen, sizeof(uint32_t) );
-	if ( sampLen < sizeof(uint64_t) )
-	{
+	a_file.read((char*)&sampLen, sizeof(uint32_t));
+	if (sampLen < sizeof(uint64_t))
 		return;
-	}
 
 	sampLen -= sizeof(uint64_t);
-	a_out.clear ();
-	a_out.resize ( sampLen );
+	a_out.clear();
+	a_out.resize(sampLen);
 
 	// Ignore 8 bytes.
 	uint64_t dummy;
-	a_file.read ( (char*)&dummy, sizeof(uint64_t) );
+	a_file.read((char*)&dummy, sizeof(uint64_t));
 
 	// Read adpcm data.
-	a_file.read ( (char*)a_out.data (), sampLen );
+	a_file.read((char*)a_out.data(), sampLen);
 }
 
-void DumpBytes ( std::string a_path, const std::vector<uint8_t>& a_bytes )
+void DumpBytes(std::string a_path, const std::vector<uint8_t>& a_bytes)
 {
-	std::ofstream fileOut ( a_path, std::ios::binary );
-	fileOut.write ( (const char*)a_bytes.data (), a_bytes.size () );
-	fileOut.close ();
+	std::ofstream fileOut(a_path, std::ios::binary);
+	fileOut.write((const char*)a_bytes.data(), a_bytes.size());
+	fileOut.close();
 }
 
-int main ( int argc, char** argv )
+int main(int argc, char** argv)
 {
-	if ( argc != 2 )
-	{
+	if (argc != 2)
 		return -1;
-	}
 
 	// Open file.
-	std::ifstream file ( argv[1], std::ios::binary );
-	if ( !file.is_open () )
-	{
+	std::ifstream file(argv[1], std::ios::binary);
+	if (!file.is_open())
 		return -1;
-	}
 
 	// Search for pcm headers.
 	std::vector<uint8_t> smpBytes;
 	int smpA = 0, smpB = 0;
-	while ( !file.eof () && !file.fail () )
+	while (!file.eof() && !file.fail())
 	{
 		uint8_t byte;
 
 		file >> byte;
-		if ( byte == 0x67 )
+		if (byte == 0x67)
 		{
 			file >> byte;
-			if ( byte == 0x66 )
+			if (byte == 0x66)
 			{
 				file >> byte;
-				if ( byte == 0x82 )
+				if (byte == 0x82)
 				{
-					std::cout << "ADPCM-A data found at 0x" << std::hex << file.tellg () << std::endl;
-					DecodeSample ( file, smpBytes );
+					std::cout << "ADPCM-A data found at 0x" << std::hex << file.tellg() << std::endl;
+					DecodeSample(file, smpBytes);
 					std::stringstream path;
 					path << std::hex << "smpa_" << (smpA++) << ".pcm";
-					DumpBytes ( path.str (), smpBytes );
+					DumpBytes(path.str(), smpBytes);
 				}
-				else
-				if ( byte == 0x83 )
+				else if (byte == 0x83)
 				{
-					std::cout << "ADPCM-B data found at 0x" << std::hex << file.tellg () << std::endl;
-					DecodeSample ( file, smpBytes );
+					std::cout << "ADPCM-B data found at 0x" << std::hex << file.tellg() << std::endl;
+					DecodeSample(file, smpBytes);
 					std::stringstream path;
 					path << std::hex << "smpb_" << (smpB++) << ".pcm";
-					DumpBytes ( path.str (), smpBytes );
+					DumpBytes(path.str(), smpBytes);
 				}
 			}
 		}
 	}
 
-	file.close ();
+	file.close();
 
 	return 0;
 }
