@@ -1,5 +1,5 @@
 /* neoadpcmextract.cpp
-  Copyright (C) 2017 Nicholas Curtis
+  Copyright (C) 2017, 2019 Nicholas Curtis
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -25,11 +25,11 @@
 #include <vector>
 #include <cstdint>
 
-void DecodeSample(std::ifstream& a_file, std::vector<uint8_t>& a_out)
+void DecodeSample(FILE* file, std::vector <uint8_t>& a_out)
 {
 	// Set up output vector.
 	uint32_t sampLen = 0;
-	a_file.read((char*)&sampLen, sizeof(uint32_t));
+	fread(&sampLen, sizeof(uint32_t), 1, file);
 	if (sampLen < sizeof(uint64_t))
 		return;
 
@@ -39,10 +39,10 @@ void DecodeSample(std::ifstream& a_file, std::vector<uint8_t>& a_out)
 
 	// Ignore 8 bytes.
 	uint64_t dummy;
-	a_file.read((char*)&dummy, sizeof(uint64_t));
+	fread(&dummy, sizeof(uint64_t), 1, file);
 
 	// Read adpcm data.
-	a_file.read((char*)a_out.data(), sampLen);
+	fread(a_out.data(), sizeof(uint8_t), sampLen, file);
 }
 
 void DumpBytes(std::string a_path, const std::vector<uint8_t>& a_bytes)
@@ -58,45 +58,38 @@ int main(int argc, char** argv)
 		return -1;
 
 	// Open file.
-	std::ifstream file(argv[1], std::ios::binary);
-	if (!file.is_open())
+	FILE* file = fopen(argv[1], "rb");
+	if (!file)
 		return -1;
 
 	// Search for pcm headers.
 	std::vector<uint8_t> smpBytes;
-	int smpA = 0, smpB = 0;
-	while (!file.eof() && !file.fail())
+	int smpaCount = 0, smpbCount = 0;
+	while (!feof(file) && !ferror(file))
 	{
-		uint8_t byte;
+		if (fgetc(file) != 0x67 &&
+			fgetc(file) != 0x66)
+			continue;
 
-		file >> byte;
-		if (byte == 0x67)
+		uint8_t byte = fgetc(file);
+		if (byte == 0x82)
 		{
-			file >> byte;
-			if (byte == 0x66)
-			{
-				file >> byte;
-				if (byte == 0x82)
-				{
-					std::cout << "ADPCM-A data found at 0x" << std::hex << file.tellg() << std::endl;
-					DecodeSample(file, smpBytes);
-					std::stringstream path;
-					path << std::hex << "smpa_" << (smpA++) << ".pcm";
-					DumpBytes(path.str(), smpBytes);
-				}
-				else if (byte == 0x83)
-				{
-					std::cout << "ADPCM-B data found at 0x" << std::hex << file.tellg() << std::endl;
-					DecodeSample(file, smpBytes);
-					std::stringstream path;
-					path << std::hex << "smpb_" << (smpB++) << ".pcm";
-					DumpBytes(path.str(), smpBytes);
-				}
-			}
+			std::cout << "ADPCM-A data found at 0x" << std::hex << ftell(file) << std::endl;
+			DecodeSample(file, smpBytes);
+			std::stringstream path;
+			path << std::hex << "smpa_" << (smpaCount++) << ".pcm";
+			DumpBytes(path.str(), smpBytes);
+		}
+		else if (byte == 0x83)
+		{
+			std::cout << "ADPCM-B data found at 0x" << std::hex << ftell(file) << std::endl;
+			DecodeSample(file, smpBytes);
+			std::stringstream path;
+			path << std::hex << "smpb_" << (smpbCount++) << ".pcm";
+			DumpBytes(path.str(), smpBytes);
 		}
 	}
 
-	file.close();
-
+	fclose(file);
 	return 0;
 }

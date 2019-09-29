@@ -1,6 +1,6 @@
 TARGET := neoadpcmextract
 SOURCE := neoadpcmextract.cpp
-CXXFLAGS := -O2 -pipe -Wall -Wextra
+CXXFLAGS := -O2 -pipe -Wall -Wextra -pedantic
 
 all: $(TARGET)
 
