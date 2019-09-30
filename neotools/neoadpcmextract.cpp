@@ -55,20 +55,19 @@ void DumpBytes(std::string a_path, const std::vector<uint8_t>& a_bytes)
 int main(int argc, char** argv)
 {
 	if (argc != 2)
-		return -1;
+		return 1;
 
 	// Open file.
 	FILE* file = fopen(argv[1], "rb");
 	if (!file)
-		return -1;
+		return 1;
 
 	// Search for pcm headers.
 	std::vector<uint8_t> smpBytes;
 	int smpaCount = 0, smpbCount = 0;
 	while (!feof(file) && !ferror(file))
 	{
-		if (fgetc(file) != 0x67 &&
-			fgetc(file) != 0x66)
+		if (fgetc(file) != 0x67 || fgetc(file) != 0x66)
 			continue;
 
 		uint8_t byte = fgetc(file);

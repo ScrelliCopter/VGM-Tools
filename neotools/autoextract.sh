@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 FILE="$1"
 NAME="$(basename "$FILE")"
@@ -6,7 +7,7 @@ WAVDIR="${NAME%%.*}"
 
 if [ "${NAME##*.}" = "vgz" ]; then
 	cp "$FILE" "temp.vgm.gz"
-	gzip -d "temp.vgm.gz"
+	gzip -fd "temp.vgm.gz"
 	FILE="temp.vgm"
 fi
 
