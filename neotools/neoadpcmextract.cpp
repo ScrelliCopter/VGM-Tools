@@ -19,40 +19,36 @@
 */
 
 #include <iostream>
-#include <fstream>
 #include <string>
 #include <sstream>
 #include <vector>
 #include <cstdint>
 
-void DecodeSample(FILE* file, std::vector <uint8_t>& a_out)
+void DecodeSample(FILE* fin, const std::string& name, std::vector <uint8_t>& buf)
 {
 	// Set up output vector.
 	uint32_t sampLen = 0;
-	fread(&sampLen, sizeof(uint32_t), 1, file);
+	fread(&sampLen, sizeof(uint32_t), 1, fin);
 	if (sampLen < sizeof(uint64_t))
 		return;
 
 	sampLen -= sizeof(uint64_t);
-	a_out.clear();
-	a_out.resize(sampLen);
+	buf.clear();
+	buf.resize(sampLen);
 
 	// Ignore 8 bytes.
 	uint64_t dummy;
-	fread(&dummy, sizeof(uint64_t), 1, file);
+	fread(&dummy, sizeof(uint64_t), 1, fin);
 
 	// Read adpcm data.
-	fread(a_out.data(), sizeof(uint8_t), sampLen, file);
-}
+	fread(buf.data(), sizeof(uint8_t), sampLen, fin);
 
-void DumpBytes(const char* path, const std::vector<uint8_t>& a_bytes)
-{
-	FILE* file = fopen(path, "wb");
-	if (!file)
+	FILE* fout = fopen(name.c_str(), "wb");
+	if (!fout)
 		return;
 
-	fwrite(a_bytes.data(), sizeof(uint8_t), a_bytes.size(), file);
-	fclose(file);
+	fwrite(buf.data(), sizeof(uint8_t), buf.size(), fout);
+	fclose(fout);
 }
 
 int main(int argc, char** argv)
@@ -77,18 +73,16 @@ int main(int argc, char** argv)
 		if (byte == 0x82)
 		{
 			std::cout << "ADPCM-A data found at 0x" << std::hex << ftell(file) << std::endl;
-			DecodeSample(file, smpBytes);
 			std::stringstream path;
 			path << std::hex << "smpa_" << (smpaCount++) << ".pcm";
-			DumpBytes(path.str().c_str(), smpBytes);
+			DecodeSample(file, path.str(), smpBytes);
 		}
 		else if (byte == 0x83)
 		{
 			std::cout << "ADPCM-B data found at 0x" << std::hex << ftell(file) << std::endl;
-			DecodeSample(file, smpBytes);
 			std::stringstream path;
 			path << std::hex << "smpb_" << (smpbCount++) << ".pcm";
-			DumpBytes(path.str().c_str(), smpBytes);
+			DecodeSample(file, path.str(), smpBytes);
 		}
 	}
 
