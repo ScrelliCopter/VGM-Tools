@@ -18,7 +18,6 @@
   3. This notice may not be removed or altered from any source distribution.
 */
 
-#include <iostream>
 #include <string>
 #include <sstream>
 #include <vector>
@@ -72,14 +71,14 @@ int main(int argc, char** argv)
 		uint8_t byte = fgetc(file);
 		if (byte == 0x82)
 		{
-			std::cout << "ADPCM-A data found at 0x" << std::hex << ftell(file) << std::endl;
+			printf("ADPCM-A data found at 0x%08lX\n", ftell(file));
 			std::stringstream path;
 			path << std::hex << "smpa_" << (smpaCount++) << ".pcm";
 			DecodeSample(file, path.str(), smpBytes);
 		}
 		else if (byte == 0x83)
 		{
-			std::cout << "ADPCM-B data found at 0x" << std::hex << ftell(file) << std::endl;
+			printf("ADPCM-B data found at 0x%08lX\n", ftell(file));
 			std::stringstream path;
 			path << std::hex << "smpb_" << (smpbCount++) << ".pcm";
 			DecodeSample(file, path.str(), smpBytes);
