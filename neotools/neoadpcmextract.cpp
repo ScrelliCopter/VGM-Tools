@@ -45,11 +45,14 @@ void DecodeSample(FILE* file, std::vector <uint8_t>& a_out)
 	fread(a_out.data(), sizeof(uint8_t), sampLen, file);
 }
 
-void DumpBytes(std::string a_path, const std::vector<uint8_t>& a_bytes)
+void DumpBytes(const char* path, const std::vector<uint8_t>& a_bytes)
 {
-	std::ofstream fileOut(a_path, std::ios::binary);
-	fileOut.write((const char*)a_bytes.data(), a_bytes.size());
-	fileOut.close();
+	FILE* file = fopen(path, "wb");
+	if (!file)
+		return;
+
+	fwrite(a_bytes.data(), sizeof(uint8_t), a_bytes.size(), file);
+	fclose(file);
 }
 
 int main(int argc, char** argv)
@@ -77,7 +80,7 @@ int main(int argc, char** argv)
 			DecodeSample(file, smpBytes);
 			std::stringstream path;
 			path << std::hex << "smpa_" << (smpaCount++) << ".pcm";
-			DumpBytes(path.str(), smpBytes);
+			DumpBytes(path.str().c_str(), smpBytes);
 		}
 		else if (byte == 0x83)
 		{
@@ -85,7 +88,7 @@ int main(int argc, char** argv)
 			DecodeSample(file, smpBytes);
 			std::stringstream path;
 			path << std::hex << "smpb_" << (smpbCount++) << ".pcm";
-			DumpBytes(path.str(), smpBytes);
+			DumpBytes(path.str().c_str(), smpBytes);
 		}
 	}
 
