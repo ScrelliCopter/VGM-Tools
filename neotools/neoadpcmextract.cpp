@@ -20,7 +20,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <cstdint>
+#include <stdint.h>
 
 
 typedef struct { uint8_t* data; size_t size; } Buffer;
