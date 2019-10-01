@@ -19,7 +19,6 @@
 */
 
 #include <string>
-#include <sstream>
 #include <vector>
 #include <cstdint>
 
@@ -62,6 +61,7 @@ int main(int argc, char** argv)
 
 	// Search for pcm headers.
 	std::vector<uint8_t> smpBytes;
+	char namebuf[32];
 	int smpaCount = 0, smpbCount = 0;
 	while (!feof(file) && !ferror(file))
 	{
@@ -72,16 +72,14 @@ int main(int argc, char** argv)
 		if (byte == 0x82)
 		{
 			printf("ADPCM-A data found at 0x%08lX\n", ftell(file));
-			std::stringstream path;
-			path << std::hex << "smpa_" << (smpaCount++) << ".pcm";
-			DecodeSample(file, path.str(), smpBytes);
+			snprintf(namebuf, sizeof(namebuf), "smpa_%x.pcm", smpaCount++);
+			DecodeSample(file, namebuf, smpBytes);
 		}
 		else if (byte == 0x83)
 		{
 			printf("ADPCM-B data found at 0x%08lX\n", ftell(file));
-			std::stringstream path;
-			path << std::hex << "smpb_" << (smpbCount++) << ".pcm";
-			DecodeSample(file, path.str(), smpBytes);
+			snprintf(namebuf, sizeof(namebuf), "smpb_%x.pcm", smpbCount++);
+			DecodeSample(file, namebuf, smpBytes);
 		}
 	}
 
