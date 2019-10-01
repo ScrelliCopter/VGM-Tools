@@ -1,11 +1,11 @@
 TARGET := neoadpcmextract
-SOURCE := neoadpcmextract.cpp
-CXXFLAGS := -O2 -pipe -Wall -Wextra -pedantic
+SOURCE := neoadpcmextract.c
+CFLAGS := -std=c99 -O2 -pipe -Wall -Wextra -pedantic
 
 all: $(TARGET)
 
 $(TARGET): $(SOURCE)
-	$(CXX) $(CXXFLAGS) $< -o $@
+	$(CC) $(CFLAGS) $< -o $@
 
 .PHONY: clean
 clean:
