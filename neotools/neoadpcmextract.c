@@ -38,7 +38,7 @@ void DecodeSample(FILE* fin, const char* name, Buffer* buf)
 	if (!buf->data || buf->size < sampLen)
 	{
 		free(buf->data);
-		buf->data = (uint8_t*)malloc(sampLen);
+		buf->data = malloc(sampLen);
 		buf->size = sampLen;
 	}
 
