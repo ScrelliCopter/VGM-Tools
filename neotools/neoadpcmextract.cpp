@@ -22,7 +22,7 @@
 #include <vector>
 #include <cstdint>
 
-void DecodeSample(FILE* fin, const std::string& name, std::vector <uint8_t>& buf)
+void DecodeSample(FILE* fin, const char* name, std::vector <uint8_t>& buf)
 {
 	// Set up output vector.
 	uint32_t sampLen = 0;
@@ -41,7 +41,7 @@ void DecodeSample(FILE* fin, const std::string& name, std::vector <uint8_t>& buf
 	// Read adpcm data.
 	fread(buf.data(), sizeof(uint8_t), sampLen, fin);
 
-	FILE* fout = fopen(name.c_str(), "wb");
+	FILE* fout = fopen(name, "wb");
 	if (!fout)
 		return;
 
