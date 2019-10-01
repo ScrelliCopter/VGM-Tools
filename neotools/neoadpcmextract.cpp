@@ -19,33 +19,41 @@
 */
 
 #include <stdio.h>
-#include <vector>
+#include <stdlib.h>
 #include <cstdint>
 
-void DecodeSample(FILE* fin, const char* name, std::vector <uint8_t>& buf)
+
+typedef struct { uint8_t* data; size_t size; } Buffer;
+
+void DecodeSample(FILE* fin, const char* name, Buffer* buf)
 {
-	// Set up output vector.
+	// Get sample data length.
 	uint32_t sampLen = 0;
 	fread(&sampLen, sizeof(uint32_t), 1, fin);
 	if (sampLen < sizeof(uint64_t))
 		return;
-
 	sampLen -= sizeof(uint64_t);
-	buf.clear();
-	buf.resize(sampLen);
+
+	// Resize buffer if needed.
+	if (!buf->data || buf->size < sampLen)
+	{
+		free(buf->data);
+		buf->data = (uint8_t*)malloc(sampLen);
+		buf->size = sampLen;
+	}
 
 	// Ignore 8 bytes.
 	uint64_t dummy;
 	fread(&dummy, sizeof(uint64_t), 1, fin);
 
 	// Read adpcm data.
-	fread(buf.data(), sizeof(uint8_t), sampLen, fin);
+	fread(buf->data, sizeof(uint8_t), sampLen, fin);
 
 	FILE* fout = fopen(name, "wb");
 	if (!fout)
 		return;
 
-	fwrite(buf.data(), sizeof(uint8_t), buf.size(), fout);
+	fwrite(buf->data, sizeof(uint8_t), sampLen, fout);
 	fclose(fout);
 }
 
@@ -60,7 +68,7 @@ int main(int argc, char** argv)
 		return 1;
 
 	// Search for pcm headers.
-	std::vector<uint8_t> smpBytes;
+	Buffer smpBytes = {NULL, 0};
 	char namebuf[32];
 	int smpaCount = 0, smpbCount = 0;
 	while (!feof(file) && !ferror(file))
@@ -73,16 +81,17 @@ int main(int argc, char** argv)
 		{
 			printf("ADPCM-A data found at 0x%08lX\n", ftell(file));
 			snprintf(namebuf, sizeof(namebuf), "smpa_%x.pcm", smpaCount++);
-			DecodeSample(file, namebuf, smpBytes);
+			DecodeSample(file, namebuf, &smpBytes);
 		}
 		else if (byte == 0x83)
 		{
 			printf("ADPCM-B data found at 0x%08lX\n", ftell(file));
 			snprintf(namebuf, sizeof(namebuf), "smpb_%x.pcm", smpbCount++);
-			DecodeSample(file, namebuf, smpBytes);
+			DecodeSample(file, namebuf, &smpBytes);
 		}
 	}
 
+	free(smpBytes.data);
 	fclose(file);
 	return 0;
 }
