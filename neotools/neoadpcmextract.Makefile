@@ -4,7 +4,8 @@ CFLAGS := -std=c99 -O2 -pipe -Wall -Wextra -pedantic
 LDFLAGS := $(CFLAGS)
 
 
-OBJECT := $(SOURCE:%.c=%.o)
+OBJDIR := .obj_$(TARGET)
+OBJECT := $(patsubst %.c, $(OBJDIR)/%.o, $(SOURCE))
 DEPEND := $(OBJECT:%.o=%.d)
 
 .PHONY: default all clean
@@ -14,10 +15,13 @@ all: $(TARGET)
 $(TARGET): $(OBJECT)
 	$(CC) $(LDFLAGS) $^ -o $@
 
-%.o: %.c
+$(OBJDIR):
+	mkdir -p $@
+
+$(OBJDIR)/%.o: %.c | $(OBJDIR)
 	$(CC) $(CFLAGS) -MMD -c $< -o $@
 
 -include: $(DEPEND)
 
 clean:
-	rm -f $(TARGET) $(OBJECT) $(DEPEND)
+	rm -rf $(OBJDIR)

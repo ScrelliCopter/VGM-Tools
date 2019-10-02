@@ -5,7 +5,10 @@
 *.pcm
 *.wav
 
+*.obj_*/
 *.o
+*.d
+CMakeLists.txt
 adpcm
 adpcmb
 neoadpcmextract
