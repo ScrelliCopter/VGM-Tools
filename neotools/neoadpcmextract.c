@@ -25,21 +25,23 @@
 
 typedef struct { uint8_t* data; size_t size; } Buffer;
 
-void DecodeSample(FILE* fin, const char* name, Buffer* buf)
+int DecodeSample(FILE* fin, const char* name, Buffer* buf)
 {
 	// Get sample data length.
 	uint32_t sampLen = 0;
 	fread(&sampLen, sizeof(uint32_t), 1, fin);
 	if (sampLen < sizeof(uint64_t))
-		return;
+		return 1;
 	sampLen -= sizeof(uint64_t);
 
 	// Resize buffer if needed.
 	if (!buf->data || buf->size < sampLen)
 	{
 		free(buf->data);
-		buf->data = malloc(sampLen);
 		buf->size = sampLen;
+		buf->data = malloc(sampLen);
+		if (!buf->data)
+			return 1;
 	}
 
 	// Ignore 8 bytes.
@@ -49,12 +51,14 @@ void DecodeSample(FILE* fin, const char* name, Buffer* buf)
 	// Read adpcm data.
 	fread(buf->data, sizeof(uint8_t), sampLen, fin);
 
+	// Write adpcm sample.
 	FILE* fout = fopen(name, "wb");
 	if (!fout)
-		return;
-
+		return 1;
 	fwrite(buf->data, sizeof(uint8_t), sampLen, fout);
 	fclose(fout);
+
+	return 0;
 }
 
 int main(int argc, char** argv)
@@ -81,13 +85,15 @@ int main(int argc, char** argv)
 		{
 			printf("ADPCM-A data found at 0x%08lX\n", ftell(file));
 			snprintf(namebuf, sizeof(namebuf), "smpa_%x.pcm", smpaCount++);
-			DecodeSample(file, namebuf, &smpBytes);
+			if (DecodeSample(file, namebuf, &smpBytes))
+				break;
 		}
 		else if (byte == 0x83)
 		{
 			printf("ADPCM-B data found at 0x%08lX\n", ftell(file));
 			snprintf(namebuf, sizeof(namebuf), "smpb_%x.pcm", smpbCount++);
-			DecodeSample(file, namebuf, &smpBytes);
+			if (DecodeSample(file, namebuf, &smpBytes))
+				break;
 		}
 	}
 
