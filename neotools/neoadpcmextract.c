@@ -61,22 +61,18 @@ int DecodeSample(FILE* fin, const char* name, Buffer* buf)
 	return 0;
 }
 
-int main(int argc, char** argv)
+int vgmExtractSamples(FILE* file)
 {
-	if (argc != 2)
-		return 1;
-
-	// Open file.
-	FILE* file = fopen(argv[1], "rb");
-	if (!file)
-		return 1;
-
-	// Search for pcm headers.
 	Buffer smpBytes = {NULL, 0};
 	char namebuf[32];
 	int smpaCount = 0, smpbCount = 0;
+
+	// Scan for pcm headers.
 	while (!feof(file) && !ferror(file))
 	{
+		// Patterns to match (in hex):
+		// 67 66 82 - ADPCM-A
+		// 67 66 83 - ADPCM-B
 		if (fgetc(file) != 0x67 || fgetc(file) != 0x66)
 			continue;
 
@@ -98,6 +94,5 @@ int main(int argc, char** argv)
 	}
 
 	free(smpBytes.data);
-	fclose(file);
 	return 0;
 }
