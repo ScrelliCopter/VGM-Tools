@@ -5,10 +5,6 @@
 *.pcm
 *.wav
 
-*.obj_*/
-*.o
-*.d
-CMakeLists.txt
-adpcm
-adpcmb
-neoadpcmextract
+.idea/
+build/
+cmake-build-*/
