@@ -1,5 +1,5 @@
-/* neoadpcmextract.cpp
-  Copyright (C) 2017, 2019 Nicholas Curtis
+/* neoadpcmextract.c
+  Copyright (C) 2017, 2019, 2020 Nicholas Curtis
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -18,14 +18,11 @@
   3. This notice may not be removed or altered from any source distribution.
 */
 
-#include <stdio.h>
+#include "neoadpcmextract.h"
 #include <stdlib.h>
-#include <stdint.h>
 
 
-typedef struct { uint8_t* data; size_t size; } Buffer;
-
-int DecodeSample(FILE* fin, const char* name, Buffer* buf)
+int vgmReadSample(FILE* fin, Buffer* buf)
 {
 	// Get sample data length.
 	uint32_t sampLen = 0;
@@ -35,10 +32,11 @@ int DecodeSample(FILE* fin, const char* name, Buffer* buf)
 	sampLen -= sizeof(uint64_t);
 
 	// Resize buffer if needed.
-	if (!buf->data || buf->size < sampLen)
+	buf->size = sampLen;
+	if (!buf->data || buf->reserved < sampLen)
 	{
 		free(buf->data);
-		buf->size = sampLen;
+		buf->reserved = sampLen;
 		buf->data = malloc(sampLen);
 		if (!buf->data)
 			return 1;
@@ -51,25 +49,17 @@ int DecodeSample(FILE* fin, const char* name, Buffer* buf)
 	// Read adpcm data.
 	fread(buf->data, sizeof(uint8_t), sampLen, fin);
 
-	// Write adpcm sample.
-	FILE* fout = fopen(name, "wb");
-	if (!fout)
-		return 1;
-	fwrite(buf->data, sizeof(uint8_t), sampLen, fout);
-	fclose(fout);
-
 	return 0;
 }
 
-int vgmExtractSamples(FILE* file)
+int vgmScanSample(FILE* file)
 {
-	Buffer smpBytes = {NULL, 0};
-	char namebuf[32];
-	int smpaCount = 0, smpbCount = 0;
-
 	// Scan for pcm headers.
-	while (!feof(file) && !ferror(file))
+	while (1)
 	{
+		if (feof(file) || ferror(file))
+			return 0;
+
 		// Patterns to match (in hex):
 		// 67 66 82 - ADPCM-A
 		// 67 66 83 - ADPCM-B
@@ -78,21 +68,8 @@ int vgmExtractSamples(FILE* file)
 
 		uint8_t byte = fgetc(file);
 		if (byte == 0x82)
-		{
-			printf("ADPCM-A data found at 0x%08lX\n", ftell(file));
-			snprintf(namebuf, sizeof(namebuf), "smpa_%x.pcm", smpaCount++);
-			if (DecodeSample(file, namebuf, &smpBytes))
-				break;
-		}
+			return 'A';
 		else if (byte == 0x83)
-		{
-			printf("ADPCM-B data found at 0x%08lX\n", ftell(file));
-			snprintf(namebuf, sizeof(namebuf), "smpb_%x.pcm", smpbCount++);
-			if (DecodeSample(file, namebuf, &smpBytes))
-				break;
-		}
+			return 'B';
 	}
-
-	free(smpBytes.data);
-	return 0;
 }
