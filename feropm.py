@@ -36,8 +36,8 @@ class Preset:
 		self.op = [self.Operator() for i in range(4)]
 
 
-def parse_fermatap(path: str) -> Preset:
-	xdoc = minidom.parse(path)
+def parse_fermatap(path: Path) -> Preset:
+	xdoc = minidom.parse(str(path))
 	xpreset = xdoc.getElementsByTagName("Preset")
 	xtarget = xpreset[0].getElementsByTagName("Target")
 	xparams = xtarget[0].getElementsByTagName("Param")
@@ -136,14 +136,14 @@ def save_vopm(path: Path, patch: Preset):
 
 def main():
 	p = ArgumentParser(description="Convert fermatap-formatted csMD presets to VOPM (.opm) files.")
-	p.add_argument("infile", help="Path to input csMD (.fermatap) file")
+	p.add_argument("infile", type=Path, help="Path to input csMD (.fermatap) file")
 	p.add_argument("--output", "-o", type=Path, required=False, help="Name of output VOPM (.opm) file")
 
 	args = p.parse_args()
 	patch = parse_fermatap(args.infile)
-	patch.name = args.infile.rstrip(".fermatap")
+	patch.name = args.output.name.rstrip(".opm") if args.output is not None else args.infile.name.rstrip(".fermatap")
 
-	outpath = args.output if args.output is not None else Path(patch.name + ".opm")
+	outpath = args.output if args.output is not None else args.infile.parent.joinpath(patch.name + ".opm")
 	save_vopm(outpath, patch)
 
 
