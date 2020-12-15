@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Name:        feropm.py
 # Copyright:   © 2020 a dinosaur
+# Homepage:    https://github.com/ScrelliCopter/VGM-Tools
 # License:     Zlib (https://opensource.org/licenses/Zlib)
 # Description: Script to convert csMD presets to VOPM files.
 #              Based on documentation provided by MovieMovies1.
