@@ -1,18 +1,21 @@
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
-project(DspTool LANGUAGES C)
+project(dsptools LANGUAGES C)
 
-option(BUILD_SHARED_LIBS "Build as a Shared Object or DLL" ON)
-
-set(HEADERS common.h dsptool.h)
-set(SOURCES math.c decode.c encode.c)
-
-add_library(DspTool ${HEADERS} ${SOURCES})
-set_property(TARGET DspTool PROPERTY C_STANDARD 99)
-if (BUILD_SHARED_LIBS)
-	target_compile_definitions(DspTool PRIVATE BUILD_SHARED)
-else()
-	target_compile_definitions(DspTool PRIVATE BUILD_STATIC)
+include(CheckIncludeFile)
+check_include_file("endian.h" HAVE_ENDIAN_H)
+if (HAVE_ENDIAN_H)
+	add_definitions(HAVE_ENDIAN_H)
 endif()
-target_compile_options(DspTool PRIVATE
-	$<$<C_COMPILER_ID:AppleClang,Clang,GNU>:-Wall -Wextra -pedantic -Wno-unused-parameter>
-	$<$<C_COMPILER_ID:MSVC>:/Wall /wd4100>)
+
+add_subdirectory(libdsptool)
+
+set(HEADERS wave.h)
+set(SOURCES wavefile.c wave.c dspdecode.c)
+
+add_executable(dspdecode ${HEADERS} ${SOURCES})
+
+set_property(TARGET dspdecode PROPERTY C_STANDARD 99)
+target_link_libraries(dspdecode DspTool::DspTool)
+target_compile_options(dspdecode PRIVATE
+	$<$<C_COMPILER_ID:AppleClang,Clang,GNU>:-Wall -Wextra -pedantic>
+	$<$<C_COMPILER_ID:MSVC>:/Wall>)

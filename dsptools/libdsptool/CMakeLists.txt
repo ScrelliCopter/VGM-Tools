@@ -3,7 +3,7 @@ project(DspTool LANGUAGES C)
 
 option(BUILD_SHARED_LIBS "Build as a Shared Object or DLL" OFF)
 
-set(HEADERS common.h dsptool.h)
+set(HEADERS ../common.h dsptool.h)
 set(SOURCES math.c decode.c encode.c)
 
 add_library(DspTool ${HEADERS} ${SOURCES})

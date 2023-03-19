@@ -1,7 +1,7 @@
 /* (c) 2017 Alex Barney (MIT) */
 
 #include <stdint.h>
-#include "common.h"
+#include "../common.h"
 #include "dsptool.h"
 
 static inline uint8_t GetHighNibble(uint8_t value)
