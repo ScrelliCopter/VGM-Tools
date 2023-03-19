@@ -1,12 +1,6 @@
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 project(dsptools LANGUAGES C)
 
-include(CheckIncludeFile)
-check_include_file("endian.h" HAVE_ENDIAN_H)
-if (HAVE_ENDIAN_H)
-	add_definitions(HAVE_ENDIAN_H)
-endif()
-
 add_subdirectory(libdsptool)
 
 set(HEADERS wave.h)

@@ -182,7 +182,7 @@ int main(int argc, char* argv[])
 	if (opt || !inPathL)
 		usage(argv[0]);
 
-	// C
+	// Compute output path if one wasn't specified
 	if (!outPath)
 	{
 		const char* base = strrchr(inPathL, '/');
@@ -205,6 +205,7 @@ int main(int argc, char* argv[])
 		outPathAlloc = true;
 	}
 
+	// Convert left (and optionally right) channels to PCM, save as wave
 	int ret;
 	PcmFile left = PCMFILE_CLEAR(), right = PCMFILE_CLEAR();
 	if ((ret = loadDsp(inPathL, &left)))
@@ -253,6 +254,8 @@ int main(int argc, char* argv[])
 Cleanup:
 	free(right.pcm);
 	free(left.pcm);
+	if (outPathAlloc)
+		free(outPath);
 
 	return ret;
 }
