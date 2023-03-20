@@ -1,5 +1,5 @@
-#ifndef COMMON_H
-#define COMMON_H
+#ifndef COMMON_ENDIAN_H
+#define COMMON_ENDIAN_H
 
 #ifdef __APPLE__
 # include <machine/endian.h>
@@ -66,7 +66,4 @@ static inline uint16_t swap16(uint16_t v)
 # define SWAP_BE16(V) (V)
 #endif
 
-#define MIN(A, B) (((A) < (B)) ? (A) : (B))
-#define MAX(A, B) (((A) > (B)) ? (A) : (B))
-
-#endif//COMMON_H
+#endif//COMMON_ENDIAN_H

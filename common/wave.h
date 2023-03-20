@@ -34,6 +34,8 @@ typedef struct
 	int    (*eof)(void* user);
 } WaveStreamCb;
 
+extern const WaveStreamCb waveStreamDefaultCb;
+
 int waveWrite(const WaveSpec* spec, const void* data, size_t dataLen, const WaveStreamCb* cb, void* user);
 int waveWriteFile(const WaveSpec* spec, const void* data, size_t dataLen, const char* path);
 int waveWriteBlock(const WaveSpec* spec, const void* blocks[], size_t blockLen, const WaveStreamCb* cb, void* user);

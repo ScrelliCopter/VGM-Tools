@@ -1,7 +1,7 @@
 /* wave.c (c) 2023 a dinosaur (zlib) */
 
 #include "wave.h"
-#include "common.h"
+#include "endian.h"
 
 #define FOURCC_RIFF "RIFF"
 #define FOURCC_WAVE "WAVE"
@@ -116,15 +116,13 @@ static int waveWriteHeader(const WaveSpec* spec, size_t dataLen, const WaveStrea
 
 int waveWrite(const WaveSpec* spec, const void* data, size_t dataLen, const WaveStreamCb* cb, void* user)
 {
-	if (!data)
-		return 1;
-
 	// Write RIFF/Wave header and raw interleaved samples
 	int res = waveWriteHeader(spec, dataLen, cb, user);
 	if (res)
 		return res;
 	//FIXME: not endian safe
-	cb->write(user, data, 1, dataLen);
+	if (data)
+		cb->write(user, data, 1, dataLen);
 
 	return 0;
 }

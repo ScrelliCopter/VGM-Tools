@@ -2,7 +2,7 @@
 
 #include "dsptool.h"
 #include "wave.h"
-#include "common.h"
+#include "endian.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -1,4 +1,4 @@
-/*;							YM2610 ADPCM-B Codec
+/*;                         YM2610 ADPCM-B Codec
 ;
 ;**** PCM to ADPCM-B & ADPCM-B to PCM converters for NEO-GEO System ****
 ;ADPCM-B - 1 channel 1.8-55.5 KHz, 16 MB Sample ROM size, 256 B min size of sample, 16 MB max, compatable with YM2608 
@@ -15,59 +15,26 @@
 
 #include <stdio.h> 
 #include <stdlib.h>
-#include <malloc.h>
-#include <math.h>
 #include <string.h>
-
-#if defined(_MSC_VER)
-#define INLINE	static __inline
-#elif defined(__GNUC__)
-#define INLINE	static __inline__
-#else
-#define INLINE	static inline
-#endif
-
-#ifdef USE_STDINT
-
 #include <stdint.h>
-typedef uint8_t			UINT8;
-typedef int8_t			INT8;
-typedef uint16_t		UINT16;
-typedef int16_t			INT16;
-typedef uint32_t		UINT32;
-typedef int32_t			INT32;
-
-#else
-
-typedef unsigned char	UINT8;
-typedef signed char		INT8;
-typedef unsigned short	UINT16;
-typedef signed short	INT16;
-typedef unsigned int	UINT32;
-typedef signed int		INT32;
-
-#endif
-
-
-typedef UINT8	BYTE;
-typedef UINT16	WORD;
-typedef UINT32	DWORD;
+#include "util.h"
 
 // -- from mmsystem.h --
-#define MAKEFOURCC(ch0, ch1, ch2, ch3)                              \
-		((DWORD)(BYTE)(ch0) | ((DWORD)(BYTE)(ch1) << 8) |   \
-		((DWORD)(BYTE)(ch2) << 16) | ((DWORD)(BYTE)(ch3) << 24 ))
+//FIXME: DEELT THIS
+#define MAKEFOURCC(ch0, ch1, ch2, ch3)                                    \
+	((uint32_t)(uint8_t)(ch0) | ((uint32_t)(uint8_t)(ch1) << 8) |         \
+	((uint32_t)(uint8_t)(ch2) << 16) | ((uint32_t)(uint8_t)(ch3) << 24 ))
 
 // -- from mmreg.h, slightly modified --
 
 /* general waveform format structure (information common to all formats) */
 typedef struct waveformat_tag {
-    WORD    wFormatTag;        /* format type */
-    WORD    nChannels;         /* number of channels (i.e. mono, stereo...) */
-    DWORD   nSamplesPerSec;    /* sample rate */
-    DWORD   nAvgBytesPerSec;   /* for buffer estimation */
-    WORD    nBlockAlign;       /* block size of data */
-    WORD    wBitsPerSample;
+    uint16_t wFormatTag;        /* format type */
+    uint16_t nChannels;         /* number of channels (i.e. mono, stereo...) */
+    uint32_t nSamplesPerSec;    /* sample rate */
+    uint32_t nAvgBytesPerSec;   /* for buffer estimation */
+    uint16_t nBlockAlign;       /* block size of data */
+    uint16_t wBitsPerSample;
 } WAVEFORMAT;
 
 /* flags for wFormatTag field of WAVEFORMAT */
@@ -75,21 +42,21 @@ typedef struct waveformat_tag {
 
 // -- from mm*.h end --
 
-#define FOURCC_RIFF     MAKEFOURCC('R', 'I', 'F', 'F')
-#define FOURCC_WAVE     MAKEFOURCC('W', 'A', 'V', 'E')
-#define FOURCC_fmt_     MAKEFOURCC('f', 'm', 't', ' ')
-#define FOURCC_data     MAKEFOURCC('d', 'a', 't', 'a')
+#define FOURCC_RIFF MAKEFOURCC('R', 'I', 'F', 'F')
+#define FOURCC_WAVE MAKEFOURCC('W', 'A', 'V', 'E')
+#define FOURCC_fmt_ MAKEFOURCC('f', 'm', 't', ' ')
+#define FOURCC_data MAKEFOURCC('d', 'a', 't', 'a')
 
 typedef struct
 {
-	UINT32 RIFFfcc;	// 'RIFF'
-	UINT32 RIFFLen;
-	UINT32 WAVEfcc;	// 'WAVE'
-	UINT32 fmt_fcc;	// 'fmt '
-	UINT32 fmt_Len;
+	uint32_t RIFFfcc;  // 'RIFF'
+	uint32_t RIFFLen;
+	uint32_t WAVEfcc;  // 'WAVE'
+	uint32_t fmt_fcc;  // 'fmt '
+	uint32_t fmt_Len;
 	WAVEFORMAT fmt_Data;
-	UINT32 datafcc;	// 'data'
-	UINT32 dataLen;
+	uint32_t datafcc;  // 'data'
+	uint32_t dataLen;
 } WAVE_FILE;
 
 
@@ -99,29 +66,29 @@ static const long stepsizeTable[16] =
 	 57,  57,  57,  57,  77, 102, 128, 153
 };
 
-static int YM2610_ADPCM_Encode(INT16 *src, UINT8 *dest, int len)
+static int YM2610_ADPCM_Encode(int16_t *src, uint8_t *dest, int len)
 {
 	int lpc, flag;
 	long i, dn, xn, stepSize;
-	UINT8 adpcm;
-	UINT8 adpcmPack;
-	
+	uint8_t adpcm;
+	uint8_t adpcmPack;
+
 	xn = 0;
 	stepSize = 127;
 	flag = 0;
-	
+
 	for (lpc = 0; lpc < len; lpc ++)
 	{
 		dn = *src - xn;
 		src ++;
-		
-		i = (abs(dn) << 16) / (stepSize << 14);
+
+		i = (labs(dn) << 16) / (stepSize << 14);
 		if (i > 7)
 			i = 7;
-		adpcm = (UINT8)i;
-		
+		adpcm = (uint8_t)i;
+
 		i = (adpcm * 2 + 1) * stepSize / 8;
-		
+
 		if (dn < 0)
 		{
 			adpcm |= 0x8;
@@ -131,14 +98,14 @@ static int YM2610_ADPCM_Encode(INT16 *src, UINT8 *dest, int len)
 		{
 			xn += i;
 		}
-		
+
 		stepSize = (stepsizeTable[adpcm] * stepSize) / 64;
-		
+
 		if (stepSize < 127)
 			stepSize = 127;
 		else if (stepSize > 24576)
 			stepSize = 24576;
-		
+
 		if (flag == 0)
 		{
 			adpcmPack = (adpcm << 4);
@@ -152,76 +119,72 @@ static int YM2610_ADPCM_Encode(INT16 *src, UINT8 *dest, int len)
 			flag = 0;
 		}
 	}
-	
+
 	return 0;
 }
 
-static int YM2610_ADPCM_Decode(UINT8 *src, INT16 *dest, int len)
+static int YM2610_ADPCM_Decode(uint8_t *src, int16_t *dest, int len)
 {
-	int lpc, flag, shift, step;
+	int lpc, shift, step;
 	long i, xn, stepSize;
-	UINT8 adpcm;
-	
+	uint8_t adpcm;
+
 	xn = 0;
 	stepSize = 127;
-	flag = 0;
 	shift = 4;
 	step = 0;
-	
+
 	for (lpc = 0; lpc < len; lpc ++)
 	{
 		adpcm = (*src >> shift) & 0xf;
-		
+
 		i = ((adpcm & 7) * 2 + 1) * stepSize / 8;
 		if (adpcm & 8)
 			xn -= i;
 		else
 			xn += i;
-		
-		if (xn > 32767)
-			xn = 32767;
-		else if (xn < -32768)
-			xn = -32768;
-		
+
+		xn = CLAMP(xn, -32768, 32767);
+
 		stepSize = stepSize * stepsizeTable[adpcm] / 64;
-		
+
 		if (stepSize < 127)
 			stepSize = 127;
 		else if (stepSize > 24576)
 			stepSize = 24576;
-		
-		*dest = (INT16)xn;
+
+		*dest = (int16_t)xn;
 		dest ++;
-		
+
 		src += step;
 		step = step ^ 1;
 		shift = shift ^ 4;
 	}
-	
+
 	return 0;
 }
 
-INLINE UINT32 DeltaTReg2SampleRate(UINT16 DeltaN, UINT32 Clock)
+static FORCE_INLINE uint32_t DeltaTReg2SampleRate(uint16_t DeltaN, uint32_t Clock)
 {
-	return (UINT32)(DeltaN * (Clock / 72.0) / 65536.0 + 0.5);
+	return (uint32_t)(DeltaN * (Clock / 72.0) / 65536.0 + 0.5);
 }
 
 int main(int argc, char* argv[])
 {
 	int ErrVal;
 	int ArgBase;
-	DWORD OutSmplRate;
+	uint32_t OutSmplRate;
 	FILE* hFile;
 	unsigned int AdpcmSize;
-	UINT8* AdpcmData;
+	uint8_t* AdpcmData;
 	unsigned int WaveSize;
-	UINT16* WaveData;
+	uint16_t* WaveData;
 	WAVE_FILE WaveFile;
 	WAVEFORMAT* TempFmt;
 	unsigned int TempLng;
-	UINT16 DTRegs;
+	uint16_t DTRegs;
 	char* TempPnt;
-	
+
 	printf("NeoGeo ADPCM-B En-/Decoder\n--------------------------\n");
 	if (argc < 4)
 	{
@@ -237,18 +200,18 @@ int main(int argc, char* argv[])
 		printf("Wave In-/Output is 16-bit, Mono\n");
 		return 1;
 	}
-	
+
 	if (strcmp(argv[1], "-d") && strcmp(argv[1], "-e"))
 	{
 		printf("Wrong option! Use -d or -e!\n");
 		return 1;
 	}
-	
+
 	ErrVal = 0;
 	AdpcmData = NULL;
 	WaveData = NULL;
 	OutSmplRate = 0;
-	
+
 	ArgBase = 2;
 	if (argv[2][0] == '-' && argv[2][2] == ':')
 	{
@@ -258,7 +221,7 @@ int main(int argc, char* argv[])
 			OutSmplRate = strtol(argv[2] + 3, NULL, 0);
 			break;
 		case 'r':
-			DTRegs = (UINT16)strtoul(argv[2] + 3, &TempPnt, 0);
+			DTRegs = (uint16_t)strtoul(argv[2] + 3, &TempPnt, 0);
 			TempLng = 0;
 			if (*TempPnt == ',')
 			{
@@ -276,7 +239,7 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 	}
-	
+
 	switch(argv[1][1])
 	{
 	case 'd':
@@ -287,26 +250,26 @@ int main(int argc, char* argv[])
 			ErrVal = 2;
 			goto Finish;
 		}
-		
+
 		fseek(hFile, 0x00, SEEK_END);
 		AdpcmSize = ftell(hFile);
-		
+
 		fseek(hFile, 0x00, SEEK_SET);
-		AdpcmData = (UINT8*)malloc(AdpcmSize);
+		AdpcmData = (uint8_t*)malloc(AdpcmSize);
 		fread(AdpcmData, 0x01, AdpcmSize, hFile);
 		fclose(hFile);
-		
-		WaveSize = AdpcmSize * 2;	// 4-bit ADPCM -> 2 values per byte
-		WaveData = (UINT16*)malloc(WaveSize * 2);
+
+		WaveSize = AdpcmSize * 2; // 4-bit ADPCM -> 2 values per byte
+		WaveData = (uint16_t*)malloc(WaveSize * 2);
 		printf("Decoding ...");
 		YM2610_ADPCM_Decode(AdpcmData, WaveData, WaveSize);
 		printf("  OK\n");
-		
+
 		WaveFile.RIFFfcc = FOURCC_RIFF;
 		WaveFile.WAVEfcc = FOURCC_WAVE;
 		WaveFile.fmt_fcc = FOURCC_fmt_;
 		WaveFile.fmt_Len = sizeof(WAVEFORMAT);
-		
+
 		TempFmt = &WaveFile.fmt_Data;
 		TempFmt->wFormatTag = WAVE_FORMAT_PCM;
 		TempFmt->nChannels = 1;
@@ -314,11 +277,11 @@ int main(int argc, char* argv[])
 		TempFmt->nSamplesPerSec = OutSmplRate ? OutSmplRate : 22050;
 		TempFmt->nBlockAlign = TempFmt->nChannels * TempFmt->wBitsPerSample / 8;
 		TempFmt->nAvgBytesPerSec = TempFmt->nBlockAlign * TempFmt->nSamplesPerSec;
-		
+
 		WaveFile.datafcc = FOURCC_data;
 		WaveFile.dataLen = WaveSize * 2;
 		WaveFile.RIFFLen = 0x04 + 0x08 + WaveFile.fmt_Len + 0x08 + WaveFile.dataLen;
-		
+
 		hFile = fopen(argv[ArgBase + 1], "wb");
 		if (hFile == NULL)
 		{
@@ -326,12 +289,12 @@ int main(int argc, char* argv[])
 			ErrVal = 3;
 			goto Finish;
 		}
-		
+
 		fwrite(&WaveFile, sizeof(WAVE_FILE), 0x01, hFile);
 		fwrite(WaveData, 0x02, WaveSize, hFile);
 		fclose(hFile);
 		printf("File written.\n");
-		
+
 		break;
 	case 'e':
 		hFile = fopen(argv[ArgBase + 0], "rb");
@@ -341,7 +304,7 @@ int main(int argc, char* argv[])
 			ErrVal = 2;
 			goto Finish;
 		}
-		
+
 		fread(&WaveFile.RIFFfcc, 0x0C, 0x01, hFile);
 		if (WaveFile.RIFFfcc != FOURCC_RIFF || WaveFile.WAVEfcc != FOURCC_WAVE)
 		{
@@ -350,12 +313,12 @@ int main(int argc, char* argv[])
 			ErrVal = 4;
 			goto Finish;
 		}
-		
+
 		TempLng = fread(&WaveFile.fmt_fcc, 0x04, 0x01, hFile);
 		fread(&WaveFile.fmt_Len, 0x04, 0x01, hFile);
 		while(WaveFile.fmt_fcc != FOURCC_fmt_)
 		{
-			if (! TempLng)	// TempLng == 0 -> EOF reached
+			if (! TempLng) // TempLng == 0 -> EOF reached
 			{
 				fclose(hFile);
 				printf("Error in wave file: Can't find format-tag!\n");
@@ -363,14 +326,14 @@ int main(int argc, char* argv[])
 				goto Finish;
 			}
 			fseek(hFile, WaveFile.fmt_Len, SEEK_CUR);
-			
+
 			TempLng = fread(&WaveFile.fmt_fcc, 0x04, 0x01, hFile);
 			fread(&WaveFile.fmt_Len, 0x04, 0x01, hFile);
 		};
 		TempLng = ftell(hFile) + WaveFile.fmt_Len;
 		fread(&WaveFile.fmt_Data, sizeof(WAVEFORMAT), 0x01, hFile);
 		fseek(hFile, TempLng, SEEK_SET);
-		
+
 		TempFmt = &WaveFile.fmt_Data;
 		if (TempFmt->wFormatTag != WAVE_FORMAT_PCM)
 		{
@@ -393,12 +356,12 @@ int main(int argc, char* argv[])
 			ErrVal = 4;
 			goto Finish;
 		}
-		
+
 		TempLng = fread(&WaveFile.datafcc, 0x04, 0x01, hFile);
 		fread(&WaveFile.dataLen, 0x04, 0x01, hFile);
 		while(WaveFile.datafcc != FOURCC_data)
 		{
-			if (! TempLng)	// TempLng == 0 -> EOF reached
+			if (! TempLng) // TempLng == 0 -> EOF reached
 			{
 				fclose(hFile);
 				printf("Error in wave file: Can't find data-tag!\n");
@@ -406,22 +369,22 @@ int main(int argc, char* argv[])
 				goto Finish;
 			}
 			fseek(hFile, WaveFile.dataLen, SEEK_CUR);
-			
+
 			TempLng = fread(&WaveFile.datafcc, 0x04, 0x01, hFile);
 			fread(&WaveFile.dataLen, 0x04, 0x01, hFile);
 		};
 		WaveSize = WaveFile.dataLen / 2;
-		WaveData = (UINT16*)malloc(WaveSize * 2);
+		WaveData = (uint16_t*)malloc(WaveSize * 2);
 		fread(WaveData, 0x02, WaveSize, hFile);
-		
+
 		fclose(hFile);
-		
+
 		AdpcmSize = WaveSize / 2;
-		AdpcmData = (UINT8*)malloc(AdpcmSize);
+		AdpcmData = (uint8_t*)malloc(AdpcmSize);
 		printf("Encoding ...");
 		YM2610_ADPCM_Encode(WaveData, AdpcmData, WaveSize);
 		printf("  OK\n");
-		
+
 		hFile = fopen(argv[ArgBase + 1], "wb");
 		if (hFile == NULL)
 		{
@@ -429,17 +392,17 @@ int main(int argc, char* argv[])
 			ErrVal = 3;
 			goto Finish;
 		}
-		
+
 		fwrite(AdpcmData, 0x01, AdpcmSize, hFile);
 		fclose(hFile);
 		printf("File written.\n");
-		
+
 		break;
 	}
-	
+
 Finish:
 	free(AdpcmData);
 	free(WaveData);
-	
+
 	return ErrVal;
 }

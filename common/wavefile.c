@@ -32,14 +32,22 @@ static int waveFileEof(void* user)
 	return feof((FILE*)user) || ferror((FILE*)user);
 }
 
+const WaveStreamCb waveStreamDefaultCb =
+{
+	.read  = waveFileRead,
+	.write = waveFileWrite,
+	.seek  = waveFileSeek,
+	.tell  = waveFileTell,
+	.eof   = waveFileEof
+};
+
 int waveWriteFile(const WaveSpec* spec, const void* data, size_t dataLen, const char* path)
 {
 	FILE* file = fopen(path, "wb");
 	if (!file)
 		return 1;
 
-	const WaveStreamCb cb = { .write = waveFileWrite };
-	int res = waveWrite(spec, data, dataLen, &cb, (void*)file);
+	int res = waveWrite(spec, data, dataLen, &waveStreamDefaultCb, (void*)file);
 	fclose(file);
 	return res;
 }
@@ -50,8 +58,7 @@ int waveWriteBlockFile(const WaveSpec* spec, const void* blocks[], size_t blockL
 	if (!file)
 		return 1;
 
-	const WaveStreamCb cb = { .write = waveFileWrite };
-	int res = waveWriteBlock(spec, blocks, blockLen, &cb, (void*)file);
+	int res = waveWriteBlock(spec, blocks, blockLen, &waveStreamDefaultCb, (void*)file);
 	fclose(file);
 	return res;
 }

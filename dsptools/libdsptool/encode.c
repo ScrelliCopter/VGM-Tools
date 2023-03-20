@@ -6,7 +6,7 @@
 #include <math.h>
 #include <float.h>
 #include <string.h>
-#include "../common.h"
+#include "util.h"
 #include "dsptool.h"
 
 /* Temporal Vector
