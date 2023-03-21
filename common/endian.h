@@ -36,7 +36,6 @@
 # define swap32(X) _byteswap_ulong((X))
 # define swap16(X) _byteswap_ushort((X))
 #elif ( __GNUC__ == 4 && __GNUC_MINOR__ >= 8 ) || ( __GNUC__ > 4 )
-# pragma message("CLion penis")
 # define swap32(X) __builtin_bswap32((X))
 # define swap16(X) __builtin_bswap16((X))
 // Apparently smelly GCC 5 blows up on this test so this is done separately for Clang
