@@ -14,7 +14,7 @@ extern "C" {
 #if defined( _WIN32 ) || defined( __CYGWIN__ )
 # ifdef BUILD_SHARED
 #  define DLLEXPORT __declspec(dllexport)
-# elif defined( WHY_ARE_YOU_USING_THIS_AS_A_DLL )
+# elif !defined( BUILD_STATIC )
 #  define DLLEXPORT __declspec(dllimport)
 # else
 #  define DLLEXPORT
