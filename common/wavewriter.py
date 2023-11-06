@@ -1,8 +1,11 @@
+# wavewriter.py -- Extensible WAVE writing framework
+# (C) 2023 a dinosaur (zlib)
+
 import struct
 from abc import abstractmethod
 from enum import Enum
 from typing import BinaryIO, List
-from riffwriter import RiffFile, AbstractRiffChunk
+from common.riffwriter import RiffFile, AbstractRiffChunk
 
 
 class WaveSampleFormat(Enum):
@@ -44,6 +47,11 @@ class WaveAbstractFormatChunk(AbstractRiffChunk):
 				self.byterate(),
 				self.align(),
 				self.bitdepth()))
+
+
+class WaveFile(RiffFile):
+	def __init__(self, format: WaveAbstractFormatChunk, chunks: List[AbstractRiffChunk]):
+		super().__init__(b"WAVE", [format] + chunks)
 
 
 class WavePcmFormatChunk(WaveAbstractFormatChunk):
@@ -88,8 +96,3 @@ class WaveCommentChunk(AbstractRiffChunk):
 
 	def __init__(self, comment: bytes):
 		self._comment = comment
-
-
-class WaveFile(RiffFile):
-	def __init__(self, format: WaveAbstractFormatChunk, chunks: List[AbstractRiffChunk]):
-		super().__init__(b"WAVE", [format] + chunks)

@@ -1,3 +1,6 @@
+# riffwriter.py -- Generic RIFF writing framework
+# (C) 2023 a dinosaur (zlib)
+
 from abc import ABC, abstractmethod
 from typing import BinaryIO, List
 

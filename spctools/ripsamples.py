@@ -12,9 +12,9 @@ from typing import BinaryIO
 from io import BytesIO
 
 import sys
-sys.path.append("../common")
-from wavewriter import WaveFile, WavePcmFormatChunk, WaveDataChunk
-from wavesampler import WaveSamplerChunk, WaveSamplerLoop
+sys.path.append("..")
+from common.wavewriter import WaveFile, WavePcmFormatChunk, WaveDataChunk
+from common.wavesampler import WaveSamplerChunk, WaveSamplerLoop
 
 
 # Directory constants
@@ -36,7 +36,6 @@ class Sample:
 
 
 def writesmp(smp: Sample, path: str):
-	print(path)
 	with open(path, "wb") as wav:
 		# Make sure sample rate is nonzero
 		#TODO: figure out why this even happens...
@@ -77,8 +76,8 @@ def readsmp(f: BinaryIO, ofs: int, idx: int):
 	f.seek(ofs + 0x12)
 	flags = int.from_bytes(f.read(1), byteorder="little", signed=False)
 
-	# Read flag values.
-	if not flags & 0b00000001: return None # Check sample data bit
+	# Read flag values
+	if not flags & 0b00000001: return None  # Check sample data bit
 	loopBit = True if flags & 0b00010000 else False
 
 	smp = Sample()
@@ -90,11 +89,11 @@ def readsmp(f: BinaryIO, ofs: int, idx: int):
 		smp.loopBeg = int.from_bytes(f.read(4), byteorder="little", signed=False)
 		smp.loopEnd = int.from_bytes(f.read(4), byteorder="little", signed=False)
 	else:
-		f.seek(8, 1) # Skip over
+		f.seek(8, 1)  # Skip over
 		smp.loopBeg = 0
 		smp.loopEnd = 0
 	smp.rate = int.from_bytes(f.read(4), byteorder="little", signed=False)
-	f.seek(8, 1) # Skip over sustain shit
+	f.seek(8, 1)  # Skip over sustain shit
 
 	# Read sample data
 	dataOfs = int.from_bytes(f.read(4), byteorder="little", signed=False)

@@ -1,7 +1,10 @@
+# wavesampler.py -- Support for the non-standard "Sampler" WAVE chunk
+# (C) 2023 a dinosaur (zlib)
+
 import struct
 from enum import Enum
-from riffwriter import AbstractRiffChunk
 from typing import BinaryIO, List
+from common.riffwriter import AbstractRiffChunk
 
 
 class WaveSamplerSMPTEOffset:
