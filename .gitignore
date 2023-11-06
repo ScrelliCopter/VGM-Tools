@@ -10,4 +10,8 @@ neotools/**/*.pcm
 neotools/**/*.vgm
 neotools/**/*.vgz
 
+spctools/it
+spctools/spc
+spctools/sample
+
 .DS_Store
