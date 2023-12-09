@@ -27,8 +27,6 @@ static int delta;
 void adpcm_init(void);
 void adpcm_decode(void *, void *, int);
 
-FILE* errorlog;
-
 int	main(int argc, char *argv[])
 {
 	FILE *InputFile, *OutputFile;
@@ -56,8 +54,6 @@ int	main(int argc, char *argv[])
 		printf("Could not open outputfile %s\n", argv[2]);
 		exit(-3);
 	}
-
-	errorlog = fopen("error.log", "wb");
 
 	InputBuffer = malloc(BUFFER_SIZE);
 	if (InputBuffer == NULL)
@@ -146,8 +142,8 @@ void adpcm_decode(void *InputBuffer, void *OutputBuffer, int Length)
 		delta = CLAMP(delta + decode_tableA1[data], 0 * 16, 48 * 16);
 		if (abs(oldsignal - cursignal) > 2500)
 		{
-			fprintf(errorlog, "WARNING: Suspicious signal evolution %06x,%06x pos:%06x delta:%06x\n", oldsignal, cursignal, i, delta);
-			fprintf(errorlog, "data:%02x dx:%08x\n", data, jedi_table[data + delta]);
+			fprintf(stderr, "WARNING: Suspicious signal evolution %06x,%06x pos:%06x delta:%06x\n", oldsignal, cursignal, i, delta);
+			fprintf(stderr, "data:%02x dx:%08x\n", data, jedi_table[data + delta]);
 		}
 		*(out++) = (cursignal & 0xffff) * 32;
 
@@ -157,8 +153,8 @@ void adpcm_decode(void *InputBuffer, void *OutputBuffer, int Length)
 		delta = CLAMP(delta + decode_tableA1[data], 0 * 16, 48 * 16);
 		if (abs(oldsignal - cursignal) > 2500)
 		{
-			fprintf(errorlog, "WARNING: Suspicious signal evolution %06x,%06x pos:%06x delta:%06x\n", oldsignal, cursignal, i, delta);
-			fprintf(errorlog, "data:%02x dx:%08x\n", data, jedi_table[data + delta]);
+			fprintf(stderr, "WARNING: Suspicious signal evolution %06x,%06x pos:%06x delta:%06x\n", oldsignal, cursignal, i, delta);
+			fprintf(stderr, "data:%02x dx:%08x\n", data, jedi_table[data + delta]);
 		}
 		*(out++) = (cursignal & 0xffff) * 32;
 	}
