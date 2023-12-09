@@ -1,57 +1,58 @@
-/* neoadpcmextract.c (C) 2017, 2019, 2020 a dinosaur (zlib) */
+/* neoadpcmextract.c (C) 2017, 2019, 2020, 2023 a dinosaur (zlib) */
 
 #include "neoadpcmextract.h"
+#include "endian.h"
 #include <stdlib.h>
 
 
-int vgmReadSample(FILE* fin, Buffer* buf)
+static uint32_t read32le(nfile* fin)
 {
-	// Get sample data length.
-	uint32_t sampLen = 0;
-	fread(&sampLen, sizeof(uint32_t), 1, fin);
-	if (sampLen < sizeof(uint64_t))
-		return 1;
-	sampLen -= sizeof(uint64_t);
+	uint32_t tmp = 0;
+	nread(&tmp, sizeof(uint32_t), 1, fin);
+	return SWAP_LE32(tmp);
+}
 
-	// Resize buffer if needed.
-	buf->size = sampLen;
-	if (!buf->data || buf->reserved < sampLen)
+bool bufferResize(Buffer* buf, size_t size)
+{
+	if (!buf)
+		return false;
+	buf->size = size;
+	if (!buf->data || buf->reserved < size)
 	{
 		free(buf->data);
-		buf->reserved = sampLen;
-		buf->data = malloc(sampLen);
+		buf->reserved = size;
+		buf->data = malloc(size);
 		if (!buf->data)
-			return 1;
+			return false;
 	}
+	return true;
+}
 
-	// Ignore 8 bytes.
-	uint64_t dummy;
-	fread(&dummy, sizeof(uint64_t), 1, fin);
+int vgmReadSample(nfile* restrict fin, Buffer* restrict buf)
+{
+	// Get sample data length
+	uint32_t sampLen = read32le(fin);
+	if (sampLen <= 8) return 1;
+	sampLen -= 8;
 
-	// Read adpcm data.
-	fread(buf->data, sizeof(uint8_t), sampLen, fin);
-
+	if (!bufferResize(buf, sampLen)) return false;    // Resize buffer if needed
+	nseek(fin, 8, SEEK_CUR);                          // Ignore 8 bytes
+	nread(buf->data, sizeof(uint8_t), sampLen, fin);  // Read adpcm data
 	return 0;
 }
 
-int vgmScanSample(FILE* file)
+int vgmScanSample(nfile* file)
 {
-	// Scan for pcm headers.
+	// Scan for pcm headers
 	while (1)
 	{
-		if (feof(file) || ferror(file))
-			return 0;
-
-		// Patterns to match (in hex):
-		// 67 66 82 - ADPCM-A
-		// 67 66 83 - ADPCM-B
-		if (fgetc(file) != 0x67 || fgetc(file) != 0x66)
-			continue;
-
-		uint8_t byte = fgetc(file);
-		if (byte == 0x82)
-			return 'A';
-		else if (byte == 0x83)
-			return 'B';
+		if (neof(file) || nerror(file)) return 0;
+		if (ngetc(file) != 0x67 || ngetc(file) != 0x66) continue;  // Match data block
+		switch (ngetc(file))
+		{
+		case 0x82: return 'A';  // 67 66 82 - ADPCM-A
+		case 0x83: return 'B';  // 67 66 83 - ADPCM-B
+		default: return 0;
+		}
 	}
 }
