@@ -4,7 +4,7 @@ if (USE_ZLIB AND NOT ZLIB_FOUND)
 	message(FATAL_ERROR "USE_ZLIB specified but Zlib was not found")
 endif()
 
-add_executable(adpcm adpcm.c)
+add_executable(adpcm adpcm.h adpcm.c)
 set_property(TARGET adpcm PROPERTY C_STANDARD 99)
 target_compile_options(adpcm PRIVATE ${WARNINGS})
 target_link_libraries(adpcm Common::wave $<$<C_COMPILER_ID:Clang,GNU>:m>)
