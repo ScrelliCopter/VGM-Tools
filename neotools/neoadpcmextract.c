@@ -2,6 +2,7 @@
 
 #include "neoadpcmextract.h"
 #include "adpcm.h"
+#include "adpcmb.h"
 #include "wave.h"
 #include "endian.h"
 #include "util.h"
@@ -71,7 +72,6 @@ int writeAdpcmA(int id, const Buffer* enc, Buffer* pcm)
 {
 	char name[32];
 	snprintf(name, sizeof(name), "smpa_%02x.wav", id);
-	fprintf(stderr, "write \"%s\"\n", name);
 	FILE* fout = fopen(name, "wb");
 	if (!fout)
 		return 1;
@@ -93,7 +93,7 @@ int writeAdpcmA(int id, const Buffer* enc, Buffer* pcm)
 	size_t decoded = 0;
 	do
 	{
-		size_t blockSize = MIN(enc->size - decoded, DECODE_BUFFER_SIZE);
+		const size_t blockSize = MIN(enc->size - decoded, DECODE_BUFFER_SIZE);
 		adpcmADecode(&decoder, &((const char*)enc->data)[decoded], (short*)pcm->data, blockSize);
 		fwrite(pcm->data, sizeof(short), blockSize * 2, fout);
 		decoded += DECODE_BUFFER_SIZE;
@@ -101,22 +101,44 @@ int writeAdpcmA(int id, const Buffer* enc, Buffer* pcm)
 	while (decoded < enc->size);
 
 	fclose(fout);
+	fprintf(stderr, "Wrote \"%s\"\n", name);
 	return 0;
 }
 
-int writeAdpcmB(int id, const Buffer* enc)
+int writeAdpcmB(int id, const Buffer* enc, Buffer* pcm)
 {
 	char name[32];
-	snprintf(name, sizeof(name), "smpb_%02x.pcm", id);
-	printf("./adpcmb -d \"%s\" \"$WAVDIR/%s.wav\"\n", name, name);
-
-	// Write ADPCM sample
+	snprintf(name, sizeof(name), "smpb_%02x.wav", id);
 	FILE* fout = fopen(name, "wb");
 	if (!fout)
 		return 1;
-	fwrite(enc->data, sizeof(uint8_t), enc->size, fout);
+
+	// Write wave header
+	const uint32_t decodedSize = enc->size * 2 * sizeof(short);
+	waveWrite(&(const WaveSpec)
+	{
+		.format    = WAVE_FMT_PCM,
+		.channels  = 1,
+		.rate      = 22050,
+		.bytedepth = 2
+	},
+	NULL, decodedSize, &waveStreamDefaultCb, fout);
+
+	bufferResize(pcm, DECODE_BUFFER_SIZE * 2 * sizeof(short));
+	AdpcmBDecoderState decoder;
+	adpcmBDecoderInit(&decoder);
+	size_t decoded = 0;
+	do
+	{
+		const size_t blockSize = MIN(enc->size - decoded, DECODE_BUFFER_SIZE);
+		adpcmBDecode(&decoder, &((const uint8_t*)enc->data)[decoded], (int16_t*)pcm->data, blockSize);
+		fwrite(pcm->data, sizeof(int16_t), blockSize * 2, fout);
+		decoded += DECODE_BUFFER_SIZE;
+	}
+	while (decoded < enc->size);
 
 	fclose(fout);
+	fprintf(stderr, "Wrote \"%s\"\n", name);
 	return 0;
 }
 
@@ -153,7 +175,7 @@ int main(int argc, char** argv)
 		if (scanType == 'A')
 			writeAdpcmA(smpaCount++, &rawbuf, &decbuf);
 		else if (scanType == 'B')
-			writeAdpcmB(smpbCount++, &rawbuf);
+			writeAdpcmB(smpbCount++, &rawbuf, &decbuf);
 	}
 
 	free(rawbuf.data);

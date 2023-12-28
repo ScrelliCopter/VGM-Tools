@@ -9,11 +9,15 @@ set_property(TARGET adpcm PROPERTY C_STANDARD 99)
 target_compile_options(adpcm PRIVATE ${WARNINGS})
 target_link_libraries(adpcm Common::wave $<$<C_COMPILER_ID:Clang,GNU>:m>)
 
-add_executable(adpcmb adpcmb.h adpcmb.c)
+add_executable(adpcmb adpcmb.h libadpcmb.c adpcmb.c)
+set_property(TARGET adpcmb PROPERTY C_STANDARD 99)
 target_compile_options(adpcmb PRIVATE ${WARNINGS})
 target_link_libraries(adpcmb Common::wave)
 
-add_executable(neoadpcmextract adpcm.h libadpcma.c neoadpcmextract.c)
+add_executable(neoadpcmextract
+	libadpcma.c adpcm.h
+	libadpcmb.c adpcmb.h
+	neoadpcmextract.c)
 set_property(TARGET neoadpcmextract PROPERTY C_STANDARD 99)
 target_compile_definitions(neoadpcmextract PRIVATE $<$<BOOL:${USE_ZLIB}>:USE_ZLIB=1>)
 target_compile_options(neoadpcmextract PRIVATE ${WARNINGS})
