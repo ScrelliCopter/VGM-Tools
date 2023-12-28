@@ -16,9 +16,7 @@ void adpcmBEncode(AdpcmBEncoderState* encoder, const int16_t* restrict in, uint8
 
 typedef struct AdpcmBDecoderState
 {
-	int shift, step;
 	long xn, stepSize;
-
 } AdpcmBDecoderState;
 
 void adpcmBDecoderInit(AdpcmBDecoderState* decoder);

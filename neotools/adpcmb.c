@@ -79,15 +79,13 @@ void adpcmBDecoderInit(AdpcmBDecoderState* decoder)
 {
 	decoder->xn = 0;
 	decoder->stepSize = 127;
-	decoder->shift = 4;
-	decoder->step = 0;
 }
 
 void adpcmBDecode(AdpcmBDecoderState* decoder, const uint8_t* restrict in, int16_t* restrict out, int len)
 {
-	for (int lpc = 0; lpc < len; ++lpc)
+	for (long lpc = 0; lpc < len * 2; ++lpc)
 	{
-		uint8_t adpcm = (*in >> decoder->shift) & 0xF;
+		uint8_t adpcm = (!(lpc & 0x1) ? (*in) >> 4 : (*in++)) & 0xF;
 
 		long i = ((adpcm & 7) * 2 + 1) * decoder->stepSize / 8;
 		if (adpcm & 8)
@@ -100,10 +98,6 @@ void adpcmBDecode(AdpcmBDecoderState* decoder, const uint8_t* restrict in, int16
 		decoder->stepSize = CLAMP(decoder->stepSize, 127, 24576);
 
 		(*out++) = (int16_t)decoder->xn;
-
-		in += decoder->step;
-		decoder->step = decoder->step ^ 1;
-		decoder->shift = decoder->shift ^ 4;
 	}
 }
 
@@ -158,7 +152,7 @@ static int decode(const char* inPath, const char* outPath, uint32_t sampleRate)
 	{
 		if ((read = fread(adpcmData, 1, BUFFER_SIZE, inFile)) > 0)
 		{
-			adpcmBDecode(&decoder, adpcmData, wavData, read * 2);
+			adpcmBDecode(&decoder, adpcmData, wavData, read);
 			fwrite(wavData, sizeof(int16_t), read * 2, outFile);
 		}
 	}
