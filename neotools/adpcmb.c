@@ -169,18 +169,171 @@ static FORCE_INLINE uint32_t DeltaTReg2SampleRate(uint16_t DeltaN, uint32_t Cloc
 	return (uint32_t)(DeltaN * (Clock / 72.0) / 65536.0 + 0.5);
 }
 
+static int decode(const char* inPath, const char* outPath, uint32_t OutSmplRate)
+{
+	FILE* hFile = fopen(inPath, "rb");
+	if (hFile == NULL)
+	{
+		printf("Error opening input file!\n");
+		return 2;
+	}
+
+	fseek(hFile, 0x00, SEEK_END);
+	unsigned int AdpcmSize = ftell(hFile);
+
+	fseek(hFile, 0x00, SEEK_SET);
+	uint8_t* AdpcmData = malloc(AdpcmSize);
+	fread(AdpcmData, 0x01, AdpcmSize, hFile);
+	fclose(hFile);
+
+	unsigned int WaveSize = AdpcmSize * 2; // 4-bit ADPCM -> 2 values per byte
+	int16_t* WaveData = malloc(WaveSize * 2);
+	printf("Decoding ...");
+	YM2610_ADPCM_Decode(AdpcmData, WaveData, WaveSize);
+	printf("  OK\n");
+
+	WAVE_FILE WaveFile;
+	WaveFile.RIFFfcc = FOURCC_RIFF;
+	WaveFile.WAVEfcc = FOURCC_WAVE;
+	WaveFile.fmt_fcc = FOURCC_fmt_;
+	WaveFile.fmt_Len = sizeof(WAVEFORMAT);
+
+	WAVEFORMAT* TempFmt = &WaveFile.fmt_Data;
+	TempFmt->wFormatTag = WAVE_FORMAT_PCM;
+	TempFmt->nChannels = 1;
+	TempFmt->wBitsPerSample = 16;
+	TempFmt->nSamplesPerSec = OutSmplRate ? OutSmplRate : 22050;
+	TempFmt->nBlockAlign = TempFmt->nChannels * TempFmt->wBitsPerSample / 8;
+	TempFmt->nAvgBytesPerSec = TempFmt->nBlockAlign * TempFmt->nSamplesPerSec;
+
+	WaveFile.datafcc = FOURCC_data;
+	WaveFile.dataLen = WaveSize * 2;
+	WaveFile.RIFFLen = 0x04 + 0x08 + WaveFile.fmt_Len + 0x08 + WaveFile.dataLen;
+
+	hFile = fopen(outPath, "wb");
+	if (hFile == NULL)
+	{
+		printf("Error opening output file!\n");
+		free(AdpcmData);
+		free(WaveData);
+		return 3;
+	}
+
+	fwrite(&WaveFile, sizeof(WAVE_FILE), 0x01, hFile);
+	fwrite(WaveData, 0x02, WaveSize, hFile);
+	fclose(hFile);
+	printf("File written.\n");
+
+	free(AdpcmData);
+	free(WaveData);
+	return 0;
+}
+
+static int encode(const char* inPath, const char* outPath)
+{
+	FILE* hFile = fopen(inPath, "rb");
+	if (hFile == NULL)
+	{
+		printf("Error opening input file!\n");
+		return 2;
+	}
+
+	WAVE_FILE WaveFile;
+	fread(&WaveFile.RIFFfcc, 0x0C, 0x01, hFile);
+	if (WaveFile.RIFFfcc != FOURCC_RIFF || WaveFile.WAVEfcc != FOURCC_WAVE)
+	{
+		fclose(hFile);
+		printf("This is no wave file!\n");
+		return 4;
+	}
+
+	unsigned int TempLng = fread(&WaveFile.fmt_fcc, 0x04, 0x01, hFile);
+	fread(&WaveFile.fmt_Len, 0x04, 0x01, hFile);
+	while(WaveFile.fmt_fcc != FOURCC_fmt_)
+	{
+		if (!TempLng) // TempLng == 0 -> EOF reached
+		{
+			fclose(hFile);
+			printf("Error in wave file: Can't find format-tag!\n");
+			return 4;
+		}
+		fseek(hFile, WaveFile.fmt_Len, SEEK_CUR);
+
+		TempLng = fread(&WaveFile.fmt_fcc, 0x04, 0x01, hFile);
+		fread(&WaveFile.fmt_Len, 0x04, 0x01, hFile);
+	};
+	TempLng = ftell(hFile) + WaveFile.fmt_Len;
+	fread(&WaveFile.fmt_Data, sizeof(WAVEFORMAT), 0x01, hFile);
+	fseek(hFile, TempLng, SEEK_SET);
+
+	WAVEFORMAT* TempFmt = &WaveFile.fmt_Data;
+	if (TempFmt->wFormatTag != WAVE_FORMAT_PCM)
+	{
+		fclose(hFile);
+		printf("Error in wave file: Compressed wave file are not supported!\n");
+		return 4;
+	}
+	if (TempFmt->nChannels != 1)
+	{
+		fclose(hFile);
+		printf("Error in wave file: Unsupported number of channels (%hu)!\n", TempFmt->nChannels);
+		return 4;
+	}
+	if (TempFmt->wBitsPerSample != 16)
+	{
+		fclose(hFile);
+		printf("Error in wave file: Only 16-bit waves are supported! (File uses %hu bit)\n", TempFmt->wBitsPerSample);
+		return 4;
+	}
+
+	TempLng = fread(&WaveFile.datafcc, 0x04, 0x01, hFile);
+	fread(&WaveFile.dataLen, 0x04, 0x01, hFile);
+	while(WaveFile.datafcc != FOURCC_data)
+	{
+		if (!TempLng) // TempLng == 0 -> EOF reached
+		{
+			fclose(hFile);
+			printf("Error in wave file: Can't find data-tag!\n");
+			return 4;
+		}
+		fseek(hFile, WaveFile.dataLen, SEEK_CUR);
+
+		TempLng = fread(&WaveFile.datafcc, 0x04, 0x01, hFile);
+		fread(&WaveFile.dataLen, 0x04, 0x01, hFile);
+	};
+	unsigned int WaveSize = WaveFile.dataLen / 2;
+	int16_t* WaveData = malloc(WaveSize * 2);
+	fread(WaveData, 0x02, WaveSize, hFile);
+
+	fclose(hFile);
+
+	unsigned int AdpcmSize = WaveSize / 2;
+	uint8_t* AdpcmData = malloc(AdpcmSize);
+	printf("Encoding ...");
+	YM2610_ADPCM_Encode(WaveData, AdpcmData, WaveSize);
+	printf("  OK\n");
+
+	hFile = fopen(outPath, "wb");
+	if (hFile == NULL)
+	{
+		printf("Error opening output file!\n");
+		free(AdpcmData);
+		free(WaveData);
+		return 3;
+	}
+
+	fwrite(AdpcmData, 0x01, AdpcmSize, hFile);
+	fclose(hFile);
+	printf("File written.\n");
+
+	free(AdpcmData);
+	free(WaveData);
+	return 0;
+}
+
+
 int main(int argc, char* argv[])
 {
-	int ErrVal;
-	int ArgBase;
-	uint32_t OutSmplRate;
-	FILE* hFile;
-	unsigned int AdpcmSize;
-	uint8_t* AdpcmData;
-	unsigned int WaveSize;
-	uint16_t* WaveData;
-	WAVE_FILE WaveFile;
-	WAVEFORMAT* TempFmt;
 	unsigned int TempLng;
 	uint16_t DTRegs;
 	char* TempPnt;
@@ -207,12 +360,10 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 
-	ErrVal = 0;
-	AdpcmData = NULL;
-	WaveData = NULL;
-	OutSmplRate = 0;
+	int ErrVal = 0;
+	uint32_t OutSmplRate = 0;
 
-	ArgBase = 2;
+	int ArgBase = 2;
 	if (argv[2][0] == '-' && argv[2][2] == ':')
 	{
 		switch(argv[2][1])
@@ -227,12 +378,12 @@ int main(int argc, char* argv[])
 			{
 				TempLng = strtoul(TempPnt + 1, NULL, 0);
 			}
-			if (! TempLng)
+			if (!TempLng)
 				TempLng = 4000000;
 			OutSmplRate = DeltaTReg2SampleRate(DTRegs, TempLng);
 			break;
 		}
-		ArgBase ++;
+		ArgBase++;
 		if (argc < ArgBase + 2)
 		{
 			printf("Not enought arguments!\n");
@@ -243,166 +394,12 @@ int main(int argc, char* argv[])
 	switch(argv[1][1])
 	{
 	case 'd':
-		hFile = fopen(argv[ArgBase + 0], "rb");
-		if (hFile == NULL)
-		{
-			printf("Error opening input file!\n");
-			ErrVal = 2;
-			goto Finish;
-		}
-
-		fseek(hFile, 0x00, SEEK_END);
-		AdpcmSize = ftell(hFile);
-
-		fseek(hFile, 0x00, SEEK_SET);
-		AdpcmData = (uint8_t*)malloc(AdpcmSize);
-		fread(AdpcmData, 0x01, AdpcmSize, hFile);
-		fclose(hFile);
-
-		WaveSize = AdpcmSize * 2; // 4-bit ADPCM -> 2 values per byte
-		WaveData = (uint16_t*)malloc(WaveSize * 2);
-		printf("Decoding ...");
-		YM2610_ADPCM_Decode(AdpcmData, WaveData, WaveSize);
-		printf("  OK\n");
-
-		WaveFile.RIFFfcc = FOURCC_RIFF;
-		WaveFile.WAVEfcc = FOURCC_WAVE;
-		WaveFile.fmt_fcc = FOURCC_fmt_;
-		WaveFile.fmt_Len = sizeof(WAVEFORMAT);
-
-		TempFmt = &WaveFile.fmt_Data;
-		TempFmt->wFormatTag = WAVE_FORMAT_PCM;
-		TempFmt->nChannels = 1;
-		TempFmt->wBitsPerSample = 16;
-		TempFmt->nSamplesPerSec = OutSmplRate ? OutSmplRate : 22050;
-		TempFmt->nBlockAlign = TempFmt->nChannels * TempFmt->wBitsPerSample / 8;
-		TempFmt->nAvgBytesPerSec = TempFmt->nBlockAlign * TempFmt->nSamplesPerSec;
-
-		WaveFile.datafcc = FOURCC_data;
-		WaveFile.dataLen = WaveSize * 2;
-		WaveFile.RIFFLen = 0x04 + 0x08 + WaveFile.fmt_Len + 0x08 + WaveFile.dataLen;
-
-		hFile = fopen(argv[ArgBase + 1], "wb");
-		if (hFile == NULL)
-		{
-			printf("Error opening output file!\n");
-			ErrVal = 3;
-			goto Finish;
-		}
-
-		fwrite(&WaveFile, sizeof(WAVE_FILE), 0x01, hFile);
-		fwrite(WaveData, 0x02, WaveSize, hFile);
-		fclose(hFile);
-		printf("File written.\n");
-
+		ErrVal = decode(argv[ArgBase + 0], argv[ArgBase + 1], OutSmplRate);
 		break;
 	case 'e':
-		hFile = fopen(argv[ArgBase + 0], "rb");
-		if (hFile == NULL)
-		{
-			printf("Error opening input file!\n");
-			ErrVal = 2;
-			goto Finish;
-		}
-
-		fread(&WaveFile.RIFFfcc, 0x0C, 0x01, hFile);
-		if (WaveFile.RIFFfcc != FOURCC_RIFF || WaveFile.WAVEfcc != FOURCC_WAVE)
-		{
-			fclose(hFile);
-			printf("This is no wave file!\n");
-			ErrVal = 4;
-			goto Finish;
-		}
-
-		TempLng = fread(&WaveFile.fmt_fcc, 0x04, 0x01, hFile);
-		fread(&WaveFile.fmt_Len, 0x04, 0x01, hFile);
-		while(WaveFile.fmt_fcc != FOURCC_fmt_)
-		{
-			if (! TempLng) // TempLng == 0 -> EOF reached
-			{
-				fclose(hFile);
-				printf("Error in wave file: Can't find format-tag!\n");
-				ErrVal = 4;
-				goto Finish;
-			}
-			fseek(hFile, WaveFile.fmt_Len, SEEK_CUR);
-
-			TempLng = fread(&WaveFile.fmt_fcc, 0x04, 0x01, hFile);
-			fread(&WaveFile.fmt_Len, 0x04, 0x01, hFile);
-		};
-		TempLng = ftell(hFile) + WaveFile.fmt_Len;
-		fread(&WaveFile.fmt_Data, sizeof(WAVEFORMAT), 0x01, hFile);
-		fseek(hFile, TempLng, SEEK_SET);
-
-		TempFmt = &WaveFile.fmt_Data;
-		if (TempFmt->wFormatTag != WAVE_FORMAT_PCM)
-		{
-			fclose(hFile);
-			printf("Error in wave file: Compressed wave file are not supported!\n");
-			ErrVal = 4;
-			goto Finish;
-		}
-		if (TempFmt->nChannels != 1)
-		{
-			fclose(hFile);
-			printf("Error in wave file: Unsupported number of channels (%hu)!\n", TempFmt->nChannels);
-			ErrVal = 4;
-			goto Finish;
-		}
-		if (TempFmt->wBitsPerSample != 16)
-		{
-			fclose(hFile);
-			printf("Error in wave file: Only 16-bit waves are supported! (File uses %hu bit)\n", TempFmt->wBitsPerSample);
-			ErrVal = 4;
-			goto Finish;
-		}
-
-		TempLng = fread(&WaveFile.datafcc, 0x04, 0x01, hFile);
-		fread(&WaveFile.dataLen, 0x04, 0x01, hFile);
-		while(WaveFile.datafcc != FOURCC_data)
-		{
-			if (! TempLng) // TempLng == 0 -> EOF reached
-			{
-				fclose(hFile);
-				printf("Error in wave file: Can't find data-tag!\n");
-				ErrVal = 4;
-				goto Finish;
-			}
-			fseek(hFile, WaveFile.dataLen, SEEK_CUR);
-
-			TempLng = fread(&WaveFile.datafcc, 0x04, 0x01, hFile);
-			fread(&WaveFile.dataLen, 0x04, 0x01, hFile);
-		};
-		WaveSize = WaveFile.dataLen / 2;
-		WaveData = (uint16_t*)malloc(WaveSize * 2);
-		fread(WaveData, 0x02, WaveSize, hFile);
-
-		fclose(hFile);
-
-		AdpcmSize = WaveSize / 2;
-		AdpcmData = (uint8_t*)malloc(AdpcmSize);
-		printf("Encoding ...");
-		YM2610_ADPCM_Encode(WaveData, AdpcmData, WaveSize);
-		printf("  OK\n");
-
-		hFile = fopen(argv[ArgBase + 1], "wb");
-		if (hFile == NULL)
-		{
-			printf("Error opening output file!\n");
-			ErrVal = 3;
-			goto Finish;
-		}
-
-		fwrite(AdpcmData, 0x01, AdpcmSize, hFile);
-		fclose(hFile);
-		printf("File written.\n");
-
+		ErrVal = encode(argv[ArgBase + 0], argv[ArgBase + 1]);
 		break;
 	}
-
-Finish:
-	free(AdpcmData);
-	free(WaveData);
 
 	return ErrVal;
 }
