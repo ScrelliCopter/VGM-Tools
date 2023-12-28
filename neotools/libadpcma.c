@@ -36,7 +36,7 @@ static const int decodeTableA1[16] =
 	-1 * 16, -1 * 16, -1 * 16, -1 * 16, 2 * 16, 5 * 16, 7 * 16, 9 * 16
 };
 
-void adpcmADecode(AdpcmADecoderState* restrict decoder, char* restrict in, short* restrict out, int len)
+void adpcmADecode(AdpcmADecoderState* decoder, const char* restrict in, short* restrict out, int len)
 {
 	for (int i = 0; i < len * 2; ++i)
 	{

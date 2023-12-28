@@ -1,7 +1,10 @@
 /* neoadpcmextract.c (C) 2017, 2019, 2020, 2023 a dinosaur (zlib) */
 
 #include "neoadpcmextract.h"
+#include "adpcm.h"
+#include "wave.h"
 #include "endian.h"
+#include "util.h"
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -31,14 +34,15 @@ bool bufferResize(Buffer* buf, size_t size)
 
 int vgmReadSample(nfile* restrict fin, Buffer* restrict buf)
 {
-	// Get sample data length
-	uint32_t sampLen = read32le(fin);
-	if (sampLen <= 8) return 1;
+	uint32_t sampLen = read32le(fin);   // Get sample data length
+	if (sampLen <= 8)
+		return 1;
 	sampLen -= 8;
 
-	if (!bufferResize(buf, sampLen)) return false;    // Resize buffer if needed
-	nseek(fin, 8, SEEK_CUR);                          // Ignore 8 bytes
-	nread(buf->data, sizeof(uint8_t), sampLen, fin);  // Read adpcm data
+	if (!bufferResize(buf, sampLen))    // Resize buffer if needed
+		return false;
+	nseek(fin, 8, SEEK_CUR);            // Ignore 8 bytes
+	nread(buf->data, 1, sampLen, fin);  // Read adpcm data
 	return 0;
 }
 
@@ -47,8 +51,10 @@ int vgmScanSample(nfile* file)
 	// Scan for pcm headers
 	while (1)
 	{
-		if (neof(file) || nerror(file)) return 0;
-		if (ngetc(file) != 0x67 || ngetc(file) != 0x66) continue;  // Match data block
+		if (neof(file) || nerror(file))
+			return 0;
+		if (ngetc(file) != 0x67 || ngetc(file) != 0x66)  // Match data block
+			continue;
 		switch (ngetc(file))
 		{
 		case 0x82: return 'A';  // 67 66 82 - ADPCM-A
@@ -59,9 +65,66 @@ int vgmScanSample(nfile* file)
 }
 
 
+#define DECODE_BUFFER_SIZE 0x4000
+
+int writeAdpcmA(int id, const Buffer* enc, Buffer* pcm)
+{
+	char name[32];
+	snprintf(name, sizeof(name), "smpa_%02x.wav", id);
+	fprintf(stderr, "write \"%s\"\n", name);
+	FILE* fout = fopen(name, "wb");
+	if (!fout)
+		return 1;
+
+	// Write wave header
+	const uint32_t decodedSize = enc->size * 2 * sizeof(short);
+	waveWrite(&(const WaveSpec)
+	{
+		.format    = WAVE_FMT_PCM,
+		.channels  = 1,
+		.rate      = 18500,
+		.bytedepth = 2
+	},
+	NULL, decodedSize, &waveStreamDefaultCb, fout);
+
+	bufferResize(pcm, DECODE_BUFFER_SIZE * 2 * sizeof(short));
+	AdpcmADecoderState decoder;
+	adpcmAInit(&decoder);
+	size_t decoded = 0;
+	do
+	{
+		size_t blockSize = MIN(enc->size - decoded, DECODE_BUFFER_SIZE);
+		adpcmADecode(&decoder, &((const char*)enc->data)[decoded], (short*)pcm->data, blockSize);
+		fwrite(pcm->data, sizeof(short), blockSize * 2, fout);
+		decoded += DECODE_BUFFER_SIZE;
+	}
+	while (decoded < enc->size);
+
+	fclose(fout);
+	return 0;
+}
+
+int writeAdpcmB(int id, const Buffer* enc)
+{
+	char name[32];
+	snprintf(name, sizeof(name), "smpb_%02x.pcm", id);
+	printf("./adpcmb -d \"%s\" \"$WAVDIR/%s.wav\"\n", name, name);
+
+	// Write ADPCM sample
+	FILE* fout = fopen(name, "wb");
+	if (!fout)
+		return 1;
+	fwrite(enc->data, sizeof(uint8_t), enc->size, fout);
+
+	fclose(fout);
+	return 0;
+}
+
+
 int main(int argc, char** argv)
 {
-	if (argc != 2) return 1;
+	if (argc != 2)
+		return 1;
 
 	nfile* file = nopen(argv[1], "rb");  // Open file
 	if (!file) return 1;
@@ -75,40 +138,25 @@ int main(int argc, char** argv)
 	nseek(file, 0, SEEK_SET);
 #endif
 
-	Buffer smpbuf = {NULL, 0, 0};
-	char name[32];
+	Buffer rawbuf = BUFFER_CLEAR(), decbuf = BUFFER_CLEAR();
 	int smpaCount = 0, smpbCount = 0;
 
 	// Find ADCPM samples
 	int scanType;
 	while ((scanType = vgmScanSample(file)))
 	{
-		if (scanType != 'A' && scanType != 'B')
-			continue;
 		fprintf(stderr, "ADPCM-%c data found at 0x%08lX\n", scanType, ntell(file));
 
-		if (vgmReadSample(file, &smpbuf) || smpbuf.size == 0)
+		if (vgmReadSample(file, &rawbuf) || rawbuf.size == 0)
 			continue;
-		if (scanType == 'A')
-		{
-			snprintf(name, sizeof(name), "smpa_%02x.pcm", smpaCount++);
-			printf("./adpcm \"%s\" \"$WAVDIR/%s.wav\"\n", name, name);
-		}
-		else
-		{
-			snprintf(name, sizeof(name), "smpb_%02x.pcm", smpbCount++);
-			printf("./adpcmb -d \"%s\" \"$WAVDIR/%s.wav\"\n", name, name);
-		}
 
-		// Write ADPCM sample
-		FILE* fout = fopen(name, "wb");
-		if (!fout)
-			continue;
-		fwrite(smpbuf.data, sizeof(uint8_t), smpbuf.size, fout);
-		fclose(fout);
+		if (scanType == 'A')
+			writeAdpcmA(smpaCount++, &rawbuf, &decbuf);
+		else if (scanType == 'B')
+			writeAdpcmB(smpbCount++, &rawbuf);
 	}
 
-	free(smpbuf.data);
+	free(rawbuf.data);
 	nclose(file);
 	return 0;
 }

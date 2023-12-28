@@ -28,7 +28,8 @@ typedef FILE nfile;
 #  define nerror ferror
 #endif
 
-typedef struct { uint8_t* data; size_t size, reserved; } Buffer;
+typedef struct { void* data; size_t size, reserved; } Buffer;
+#define BUFFER_CLEAR() { NULL, 0, 0 }
 
 bool bufferResize(Buffer* buf, size_t size);
 
