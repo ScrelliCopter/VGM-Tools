@@ -11,7 +11,7 @@ target_link_libraries(adpcm Common::wave $<$<C_COMPILER_ID:Clang,GNU>:m>)
 
 add_executable(adpcmb adpcmb.c)
 target_compile_options(adpcmb PRIVATE ${WARNINGS})
-target_link_libraries(adpcmb Common::headers)
+target_link_libraries(adpcmb Common::wave)
 
 add_executable(neoadpcmextract adpcm.h libadpcma.c neoadpcmextract.c)
 set_property(TARGET neoadpcmextract PROPERTY C_STANDARD 99)

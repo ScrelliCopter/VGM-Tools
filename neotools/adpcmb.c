@@ -13,51 +13,11 @@
 ; Valley Bell
 ;----------------------------------------------------------------------------------------------------------------------------*/
 
-#include <stdio.h> 
+#include "wave.h"
+#include "util.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#include "util.h"
-
-// -- from mmsystem.h --
-//FIXME: DEELT THIS
-#define MAKEFOURCC(ch0, ch1, ch2, ch3)                                    \
-	((uint32_t)(uint8_t)(ch0) | ((uint32_t)(uint8_t)(ch1) << 8) |         \
-	((uint32_t)(uint8_t)(ch2) << 16) | ((uint32_t)(uint8_t)(ch3) << 24 ))
-
-// -- from mmreg.h, slightly modified --
-
-/* general waveform format structure (information common to all formats) */
-typedef struct waveformat_tag {
-    uint16_t wFormatTag;        /* format type */
-    uint16_t nChannels;         /* number of channels (i.e. mono, stereo...) */
-    uint32_t nSamplesPerSec;    /* sample rate */
-    uint32_t nAvgBytesPerSec;   /* for buffer estimation */
-    uint16_t nBlockAlign;       /* block size of data */
-    uint16_t wBitsPerSample;
-} WAVEFORMAT;
-
-/* flags for wFormatTag field of WAVEFORMAT */
-#define WAVE_FORMAT_PCM     1
-
-// -- from mm*.h end --
-
-#define FOURCC_RIFF MAKEFOURCC('R', 'I', 'F', 'F')
-#define FOURCC_WAVE MAKEFOURCC('W', 'A', 'V', 'E')
-#define FOURCC_fmt_ MAKEFOURCC('f', 'm', 't', ' ')
-#define FOURCC_data MAKEFOURCC('d', 'a', 't', 'a')
-
-typedef struct
-{
-	uint32_t RIFFfcc;  // 'RIFF'
-	uint32_t RIFFLen;
-	uint32_t WAVEfcc;  // 'WAVE'
-	uint32_t fmt_fcc;  // 'fmt '
-	uint32_t fmt_Len;
-	WAVEFORMAT fmt_Data;
-	uint32_t datafcc;  // 'data'
-	uint32_t dataLen;
-} WAVE_FILE;
 
 
 static const long stepsizeTable[16] =
@@ -169,65 +129,75 @@ static FORCE_INLINE uint32_t DeltaTReg2SampleRate(uint16_t DeltaN, uint32_t Cloc
 	return (uint32_t)(DeltaN * (Clock / 72.0) / 65536.0 + 0.5);
 }
 
-static int decode(const char* inPath, const char* outPath, uint32_t OutSmplRate)
+static int decode(const char* inPath, const char* outPath, uint32_t sampleRate)
 {
-	FILE* hFile = fopen(inPath, "rb");
-	if (hFile == NULL)
+	FILE* inFile = fopen(inPath, "rb");
+	if (inFile == NULL)
 	{
 		printf("Error opening input file!\n");
 		return 2;
 	}
 
-	fseek(hFile, 0x00, SEEK_END);
-	unsigned int AdpcmSize = ftell(hFile);
+	fseek(inFile, 0, SEEK_END);
+	long adpcmSize = ftell(inFile);
+	fseek(inFile, 0, SEEK_SET);
 
-	fseek(hFile, 0x00, SEEK_SET);
-	uint8_t* AdpcmData = malloc(AdpcmSize);
-	fread(AdpcmData, 0x01, AdpcmSize, hFile);
-	fclose(hFile);
+	uint8_t* adpcmData = malloc((size_t)adpcmSize);
+	fread(adpcmData, 0x01, adpcmSize, inFile);
+	fclose(inFile);
 
-	unsigned int WaveSize = AdpcmSize * 2; // 4-bit ADPCM -> 2 values per byte
-	int16_t* WaveData = malloc(WaveSize * 2);
+	long wavSize = adpcmSize * 2;  // 4-bit ADPCM -> 2 values per byte
+	int16_t* wavData = malloc((size_t)wavSize * sizeof(int16_t));
 	printf("Decoding ...");
-	YM2610_ADPCM_Decode(AdpcmData, WaveData, WaveSize);
+	YM2610_ADPCM_Decode(adpcmData, wavData, wavSize);
 	printf("  OK\n");
 
-	WAVE_FILE WaveFile;
-	WaveFile.RIFFfcc = FOURCC_RIFF;
-	WaveFile.WAVEfcc = FOURCC_WAVE;
-	WaveFile.fmt_fcc = FOURCC_fmt_;
-	WaveFile.fmt_Len = sizeof(WAVEFORMAT);
-
-	WAVEFORMAT* TempFmt = &WaveFile.fmt_Data;
-	TempFmt->wFormatTag = WAVE_FORMAT_PCM;
-	TempFmt->nChannels = 1;
-	TempFmt->wBitsPerSample = 16;
-	TempFmt->nSamplesPerSec = OutSmplRate ? OutSmplRate : 22050;
-	TempFmt->nBlockAlign = TempFmt->nChannels * TempFmt->wBitsPerSample / 8;
-	TempFmt->nAvgBytesPerSec = TempFmt->nBlockAlign * TempFmt->nSamplesPerSec;
-
-	WaveFile.datafcc = FOURCC_data;
-	WaveFile.dataLen = WaveSize * 2;
-	WaveFile.RIFFLen = 0x04 + 0x08 + WaveFile.fmt_Len + 0x08 + WaveFile.dataLen;
-
-	hFile = fopen(outPath, "wb");
-	if (hFile == NULL)
+	// Write decoded sample as WAVE
+	FILE* outFile = fopen(outPath, "wb");
+	if (outFile == NULL)
 	{
 		printf("Error opening output file!\n");
-		free(AdpcmData);
-		free(WaveData);
+		free(adpcmData);
+		free(wavData);
 		return 3;
 	}
+	waveWrite(&(const WaveSpec)
+	{
+		.format    = WAVE_FMT_PCM,
+		.channels  = 1,
+		.rate      = sampleRate ? sampleRate : 22050,
+		.bytedepth = 2
+	},
+	wavData, (size_t)wavSize * sizeof(int16_t), &waveStreamDefaultCb, outFile);
+	fclose(outFile);
 
-	fwrite(&WaveFile, sizeof(WAVE_FILE), 0x01, hFile);
-	fwrite(WaveData, 0x02, WaveSize, hFile);
-	fclose(hFile);
 	printf("File written.\n");
 
-	free(AdpcmData);
-	free(WaveData);
+	free(adpcmData);
+	free(wavData);
 	return 0;
 }
+
+typedef struct waveformat_tag {
+    uint16_t wFormatTag;        /* format type */
+    uint16_t nChannels;         /* number of channels (i.e. mono, stereo...) */
+    uint32_t nSamplesPerSec;    /* sample rate */
+    uint32_t nAvgBytesPerSec;   /* for buffer estimation */
+    uint16_t nBlockAlign;       /* block size of data */
+    uint16_t wBitsPerSample;
+} WAVEFORMAT;
+
+typedef struct
+{
+	char RIFFfcc[4];
+	uint32_t RIFFLen;
+	char WAVEfcc[4];
+	char fmt_fcc[4];
+	uint32_t fmt_Len;
+	WAVEFORMAT fmt_Data;
+	char datafcc[4];
+	uint32_t dataLen;
+} WAVE_FILE;
 
 static int encode(const char* inPath, const char* outPath)
 {
@@ -240,7 +210,7 @@ static int encode(const char* inPath, const char* outPath)
 
 	WAVE_FILE WaveFile;
 	fread(&WaveFile.RIFFfcc, 0x0C, 0x01, hFile);
-	if (WaveFile.RIFFfcc != FOURCC_RIFF || WaveFile.WAVEfcc != FOURCC_WAVE)
+	if (memcmp(WaveFile.RIFFfcc, "RIFF", 4) != 0 || memcmp(WaveFile.WAVEfcc, "WAVE", 4) != 0)
 	{
 		fclose(hFile);
 		printf("This is no wave file!\n");
@@ -249,7 +219,7 @@ static int encode(const char* inPath, const char* outPath)
 
 	unsigned int TempLng = fread(&WaveFile.fmt_fcc, 0x04, 0x01, hFile);
 	fread(&WaveFile.fmt_Len, 0x04, 0x01, hFile);
-	while(WaveFile.fmt_fcc != FOURCC_fmt_)
+	while (memcmp(WaveFile.fmt_fcc, "fmt ", 4) != 0)
 	{
 		if (!TempLng) // TempLng == 0 -> EOF reached
 		{
@@ -267,7 +237,7 @@ static int encode(const char* inPath, const char* outPath)
 	fseek(hFile, TempLng, SEEK_SET);
 
 	WAVEFORMAT* TempFmt = &WaveFile.fmt_Data;
-	if (TempFmt->wFormatTag != WAVE_FORMAT_PCM)
+	if (TempFmt->wFormatTag != WAVE_FMT_PCM)
 	{
 		fclose(hFile);
 		printf("Error in wave file: Compressed wave file are not supported!\n");
@@ -288,7 +258,7 @@ static int encode(const char* inPath, const char* outPath)
 
 	TempLng = fread(&WaveFile.datafcc, 0x04, 0x01, hFile);
 	fread(&WaveFile.dataLen, 0x04, 0x01, hFile);
-	while(WaveFile.datafcc != FOURCC_data)
+	while (memcmp(WaveFile.datafcc, "data", 4) != 0)
 	{
 		if (!TempLng) // TempLng == 0 -> EOF reached
 		{
