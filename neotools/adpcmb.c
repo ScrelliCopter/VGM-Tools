@@ -1,9 +1,5 @@
 /*;                         YM2610 ADPCM-B Codec
 ;
-;**** PCM to ADPCM-B & ADPCM-B to PCM converters for NEO-GEO System ****
-;ADPCM-B - 1 channel 1.8-55.5 KHz, 16 MB Sample ROM size, 256 B min size of sample, 16 MB max, compatable with YM2608 
-;
-;http://www.raregame.ru/file/15/YM2610.pdf     YM2610 DATASHEET
 ;
 ; Fred/FRONT
 ;
@@ -13,6 +9,7 @@
 ; Valley Bell
 ;----------------------------------------------------------------------------------------------------------------------------*/
 
+#include "adpcmb.h"
 #include "wave.h"
 #include "util.h"
 #include <stdio.h>
@@ -20,114 +17,102 @@
 #include <string.h>
 
 
-static const long stepsizeTable[16] =
+/* PCM to ADPCM-B & ADPCM-B to PCM converters for NEO-GEO System ****
+ ADPCM-B - 1 channel 1.8-55.5 KHz, 16 MB Sample ROM size, 256 B min size of sample, 16 MB max, compatable with YM2608
+
+ http://www.raregame.ru/file/15/YM2610.pdf     YM2610 DATASHEET
+*/
+
+static const long stepSizeTable[16] =
 {
 	 57,  57,  57,  57,  77, 102, 128, 153,
 	 57,  57,  57,  57,  77, 102, 128, 153
 };
 
-static int YM2610_ADPCM_Encode(int16_t *src, uint8_t *dest, int len)
+void adpcmBEncoderInit(AdpcmBEncoderState* encoder)
 {
-	int lpc, flag;
-	long i, dn, xn, stepSize;
-	uint8_t adpcm;
-	uint8_t adpcmPack;
+	encoder->xn = 0;
+	encoder->stepSize = 127;
+	encoder->flag = false;
+	encoder->adpcmPack = 0;
+}
 
-	xn = 0;
-	stepSize = 127;
-	flag = 0;
-
-	for (lpc = 0; lpc < len; lpc ++)
+void adpcmBEncode(AdpcmBEncoderState* encoder, const int16_t* restrict in, uint8_t* restrict out, int len)
+{
+	for (int lpc = 0; lpc < len; ++lpc)
 	{
-		dn = *src - xn;
-		src ++;
+		long dn = (*in++) - encoder->xn;
 
-		i = (labs(dn) << 16) / (stepSize << 14);
-		if (i > 7)
-			i = 7;
-		adpcm = (uint8_t)i;
+		long i = (labs(dn) << 16) / (encoder->stepSize << 14);
+		i = MIN(i, 7);
+		uint8_t adpcm = i;
 
-		i = (adpcm * 2 + 1) * stepSize / 8;
+		i = (adpcm * 2 + 1) * encoder->stepSize / 8;
 
 		if (dn < 0)
 		{
 			adpcm |= 0x8;
-			xn -= i;
+			encoder->xn -= i;
 		}
 		else
 		{
-			xn += i;
+			encoder->xn += i;
 		}
 
-		stepSize = (stepsizeTable[adpcm] * stepSize) / 64;
+		encoder->stepSize = (stepSizeTable[adpcm] * encoder->stepSize) / 64;
+		encoder->stepSize = CLAMP(encoder->stepSize, 127, 24576);
 
-		if (stepSize < 127)
-			stepSize = 127;
-		else if (stepSize > 24576)
-			stepSize = 24576;
-
-		if (flag == 0)
+		if (!encoder->flag)
 		{
-			adpcmPack = (adpcm << 4);
-			flag = 1;
+			encoder->adpcmPack = adpcm << 4;
+			encoder->flag = true;
 		}
 		else
 		{
-			adpcmPack |= adpcm;
-			*dest = adpcmPack;
-			dest ++;
-			flag = 0;
+			(*out++) = encoder->adpcmPack |= adpcm;
+			encoder->flag = false;
 		}
 	}
-
-	return 0;
 }
 
-static int YM2610_ADPCM_Decode(uint8_t *src, int16_t *dest, int len)
+void adpcmBDecoderInit(AdpcmBDecoderState* decoder)
 {
-	int lpc, shift, step;
-	long i, xn, stepSize;
-	uint8_t adpcm;
+	decoder->xn = 0;
+	decoder->stepSize = 127;
+	decoder->shift = 4;
+	decoder->step = 0;
+}
 
-	xn = 0;
-	stepSize = 127;
-	shift = 4;
-	step = 0;
-
-	for (lpc = 0; lpc < len; lpc ++)
+void adpcmBDecode(AdpcmBDecoderState* decoder, const uint8_t* restrict in, int16_t* restrict out, int len)
+{
+	for (int lpc = 0; lpc < len; ++lpc)
 	{
-		adpcm = (*src >> shift) & 0xf;
+		uint8_t adpcm = (*in >> decoder->shift) & 0xF;
 
-		i = ((adpcm & 7) * 2 + 1) * stepSize / 8;
+		long i = ((adpcm & 7) * 2 + 1) * decoder->stepSize / 8;
 		if (adpcm & 8)
-			xn -= i;
+			decoder->xn -= i;
 		else
-			xn += i;
+			decoder->xn += i;
+		decoder->xn = CLAMP(decoder->xn, -32768, 32767);
 
-		xn = CLAMP(xn, -32768, 32767);
+		decoder->stepSize = decoder->stepSize * stepSizeTable[adpcm] / 64;
+		decoder->stepSize = CLAMP(decoder->stepSize, 127, 24576);
 
-		stepSize = stepSize * stepsizeTable[adpcm] / 64;
+		(*out++) = (int16_t)decoder->xn;
 
-		if (stepSize < 127)
-			stepSize = 127;
-		else if (stepSize > 24576)
-			stepSize = 24576;
-
-		*dest = (int16_t)xn;
-		dest ++;
-
-		src += step;
-		step = step ^ 1;
-		shift = shift ^ 4;
+		in += decoder->step;
+		decoder->step = decoder->step ^ 1;
+		decoder->shift = decoder->shift ^ 4;
 	}
-
-	return 0;
 }
 
 static FORCE_INLINE uint32_t DeltaTReg2SampleRate(uint16_t DeltaN, uint32_t Clock)
 {
 	return (uint32_t)(DeltaN * (Clock / 72.0) / 65536.0 + 0.5);
 }
+
+#define BUFFER_SIZE 2048
 
 static int decode(const char* inPath, const char* outPath, uint32_t sampleRate)
 {
@@ -142,25 +127,20 @@ static int decode(const char* inPath, const char* outPath, uint32_t sampleRate)
 	long adpcmSize = ftell(inFile);
 	fseek(inFile, 0, SEEK_SET);
 
-	uint8_t* adpcmData = malloc((size_t)adpcmSize);
-	fread(adpcmData, 0x01, adpcmSize, inFile);
-	fclose(inFile);
+	uint8_t* adpcmData = malloc(BUFFER_SIZE);
+	int16_t* wavData   = malloc(BUFFER_SIZE * 2 * sizeof(int16_t));
 
-	long wavSize = adpcmSize * 2;  // 4-bit ADPCM -> 2 values per byte
-	int16_t* wavData = malloc((size_t)wavSize * sizeof(int16_t));
-	printf("Decoding ...");
-	YM2610_ADPCM_Decode(adpcmData, wavData, wavSize);
-	printf("  OK\n");
-
-	// Write decoded sample as WAVE
 	FILE* outFile = fopen(outPath, "wb");
 	if (outFile == NULL)
 	{
 		printf("Error opening output file!\n");
-		free(adpcmData);
 		free(wavData);
+		free(adpcmData);
+		fclose(inFile);
 		return 3;
 	}
+
+	// Write wave header
 	waveWrite(&(const WaveSpec)
 	{
 		.format    = WAVE_FMT_PCM,
@@ -168,13 +148,28 @@ static int decode(const char* inPath, const char* outPath, uint32_t sampleRate)
 		.rate      = sampleRate ? sampleRate : 22050,
 		.bytedepth = 2
 	},
-	wavData, (size_t)wavSize * sizeof(int16_t), &waveStreamDefaultCb, outFile);
+	NULL, (size_t)adpcmSize * 2 * sizeof(int16_t), &waveStreamDefaultCb, outFile);
+
+	printf("Decoding ...");
+	AdpcmBDecoderState decoder;
+	adpcmBDecoderInit(&decoder);
+	size_t read;
+	do
+	{
+		if ((read = fread(adpcmData, 1, BUFFER_SIZE, inFile)) > 0)
+		{
+			adpcmBDecode(&decoder, adpcmData, wavData, read * 2);
+			fwrite(wavData, sizeof(int16_t), read * 2, outFile);
+		}
+	}
+	while (read == BUFFER_SIZE);
+	printf("  OK\n");
 	fclose(outFile);
 
-	printf("File written.\n");
-
-	free(adpcmData);
 	free(wavData);
+	free(adpcmData);
+	fclose(inFile);
+	printf("File written.\n");
 	return 0;
 }
 
@@ -280,7 +275,9 @@ static int encode(const char* inPath, const char* outPath)
 	unsigned int AdpcmSize = WaveSize / 2;
 	uint8_t* AdpcmData = malloc(AdpcmSize);
 	printf("Encoding ...");
-	YM2610_ADPCM_Encode(WaveData, AdpcmData, WaveSize);
+	AdpcmBEncoderState encoder;
+	adpcmBEncoderInit(&encoder);
+	adpcmBEncode(&encoder, WaveData, AdpcmData, WaveSize);
 	printf("  OK\n");
 
 	hFile = fopen(outPath, "wb");
@@ -336,7 +333,7 @@ int main(int argc, char* argv[])
 	int ArgBase = 2;
 	if (argv[2][0] == '-' && argv[2][2] == ':')
 	{
-		switch(argv[2][1])
+		switch (argv[2][1])
 		{
 		case 's':
 			OutSmplRate = strtol(argv[2] + 3, NULL, 0);
@@ -353,15 +350,14 @@ int main(int argc, char* argv[])
 			OutSmplRate = DeltaTReg2SampleRate(DTRegs, TempLng);
 			break;
 		}
-		ArgBase++;
-		if (argc < ArgBase + 2)
+		if (argc < ++ArgBase + 2)
 		{
 			printf("Not enought arguments!\n");
 			return 1;
 		}
 	}
 
-	switch(argv[1][1])
+	switch (argv[1][1])
 	{
 	case 'd':
 		ErrVal = decode(argv[ArgBase + 0], argv[ArgBase + 1], OutSmplRate);
