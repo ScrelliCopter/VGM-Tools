@@ -1,4 +1,4 @@
-/* wavefile.c (c) 2023 a dinosaur (zlib) */
+/* wavefile.c (c) 2023, 2025 a dinosaur (zlib) */
 
 #include "wave.h"
 #include <stdio.h>
@@ -13,23 +13,36 @@ static size_t waveFileWrite(void* restrict user, const void* restrict src, size_
 	return fwrite(src, size, num, (FILE*)user);
 }
 
-static void waveFileSeek(void* restrict user, int offset)
+static void waveFileSeek(void* restrict user, long offset, WaveStreamWhence whence)
 {
-#ifndef _MSC_VER
-	fseek((FILE*)user, (off_t)offset, SEEK_CUR);
-#else
-	fseek((FILE*)user, (long)offset, SEEK_CUR);
-#endif
+	int seek;
+	switch (whence)
+	{
+	case WAVE_SEEK_SET: seek = SEEK_SET; break;
+	case WAVE_SEEK_CUR: seek = SEEK_CUR; break;
+	case WAVE_SEEK_END: seek = SEEK_END; break;
+	default: seek = -1;
+	}
+	fseek((FILE*)user, offset, seek);
 }
 
-static size_t waveFileTell(void* user)
+static bool waveFileTell(void* restrict user, size_t* restrict result)
 {
-	return ftell((FILE*)user);
+	const long pos = ftell((FILE*)user);
+	if (pos == -1L)
+		return false;
+	*result = (size_t)pos;
+	return true;
 }
 
-static int waveFileEof(void* user)
+static bool waveFileEof(void* restrict user)
 {
-	return feof((FILE*)user) || ferror((FILE*)user);
+	return feof((FILE*)user);
+}
+
+static bool waveFileError(void* restrict user)
+{
+	return ferror((FILE*)user);
 }
 
 const WaveStreamCb waveStreamDefaultCb =
@@ -38,7 +51,8 @@ const WaveStreamCb waveStreamDefaultCb =
 	.write = waveFileWrite,
 	.seek  = waveFileSeek,
 	.tell  = waveFileTell,
-	.eof   = waveFileEof
+	.eof   = waveFileEof,
+	.error = waveFileError
 };
 
 int waveWriteFile(const WaveSpec* spec, const void* data, size_t dataLen, const char* path)

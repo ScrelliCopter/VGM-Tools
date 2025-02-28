@@ -8,3 +8,4 @@ set(WARNINGS
 add_subdirectory(common)
 add_subdirectory(dsptools)
 add_subdirectory(neotools)
+add_subdirectory(aiftools)

@@ -1,0 +1,5 @@
+add_executable(aifsampconv aifsampconv.c)
+set_property(TARGET aifsampconv PROPERTY C_STANDARD 99)
+target_include_directories(aifsampconv PRIVATE ${COMMON})
+target_link_libraries(aifsampconv Common::wave)
+target_compile_options(aifsampconv PRIVATE ${WARNINGS})

@@ -13,4 +13,12 @@
 # define FORCE_INLINE inline
 #endif
 
+#if defined(__has_builtin) && __has_builtin(__builtin_expect)
+# define fastPath(X) __builtin_expect(!!(X), 1)
+# define slowPath(X) __builtin_expect(!!(X), 0)
+#else
+# define fastPath(X) (X)
+# define slowPath(X) (X)
+#endif
+
 #endif//COMMON_UTIL_H

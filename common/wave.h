@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <stddef.h>
 
 typedef enum
@@ -20,18 +21,26 @@ typedef enum
 typedef struct
 {
 	WaveFormat format;
-	int channels;
-	unsigned rate;
-	int bytedepth;
+	int        channels;
+	unsigned   rate;
+	int        bytedepth;
 } WaveSpec;
+
+typedef enum
+{
+	WAVE_SEEK_SET = 0, // From start of file
+	WAVE_SEEK_CUR = 1, // From current position in file
+	WAVE_SEEK_END = 2  // From EOF
+} WaveStreamWhence;
 
 typedef struct
 {
 	size_t (*read)(void* restrict user, void* restrict out, size_t size, size_t num);
 	size_t (*write)(void* restrict user, const void* restrict src, size_t size, size_t num);
-	void   (*seek)(void* restrict user, int offset);
-	size_t (*tell)(void* user);
-	int    (*eof)(void* user);
+	void   (*seek)(void* restrict user, long offset, WaveStreamWhence whence);
+	bool   (*tell)(void* restrict user, size_t* restrict result);
+	bool   (*eof)(void* restrict user);
+	bool   (*error)(void* restrict user);
 } WaveStreamCb;
 
 extern const WaveStreamCb waveStreamDefaultCb;

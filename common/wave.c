@@ -1,55 +1,12 @@
 /* wave.c (c) 2023 a dinosaur (zlib) */
 
 #include "wave.h"
+#include "wavedefs.h"
 #include "endian.h"
 
-#define FOURCC_RIFF "RIFF"
-#define FOURCC_WAVE "WAVE"
-#define FOURCC_FORM "fmt "
-#define FOURCC_SAMP "smpl"
-#define FOURCC_DATA "data"
-
-#define FORMAT_CHUNK_SIZE 16
-typedef struct
+static void writeFourcc(const WaveStreamCb* restrict cb, void* restrict user, RiffFourCC fourcc)
 {
-    uint16_t format;
-    uint16_t channels;
-    uint32_t samplerate;
-    uint32_t byterate;
-    uint16_t alignment;
-    uint16_t bitdepth;
-
-} FormatChunk;
-
-typedef struct
-{
-    uint32_t id;
-	uint32_t type;
-	uint32_t loopstart;
-	uint32_t loopend;
-	uint32_t fraction;
-	uint32_t playcount;
-
-} SampleLoopChunk;
-
-#define SMPL_CHUNK_HEAD_SIZE 24
-typedef struct
-{
-	uint32_t manufacturer;
-	uint32_t product;
-	uint32_t samplePeriod;
-	uint32_t midiUniNote;
-	uint32_t midiPitchFrac;
-	uint32_t smpteFormat;
-	uint32_t smpteOffset;
-	uint32_t sampleLoopCount;
-	uint32_t sampleData;
-
-} SamplerChunk;
-
-static void writeFourcc(const WaveStreamCb* restrict cb, void* restrict user, const char fourcc[4])
-{
-	cb->write(user, fourcc, 1, 4);
+	cb->write(user, fourcc.c, 1, 4);
 }
 
 static void writeU32le(const WaveStreamCb* restrict cb, void* restrict user, uint32_t v)
@@ -64,7 +21,7 @@ static void writeU16le(const WaveStreamCb* restrict cb, void* restrict user, uin
 	cb->write(user, &tmp, sizeof(uint16_t), 1);
 }
 
-void writeRiffChunk(const WaveStreamCb* restrict cb, void* restrict user, char fourcc[4], uint32_t size)
+void writeRiffChunk(const WaveStreamCb* restrict cb, void* restrict user, RiffFourCC fourcc, uint32_t size)
 {
 	writeFourcc(cb, user, fourcc);
 	writeU32le(cb, user, size);
