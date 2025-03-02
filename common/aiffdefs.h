@@ -3,6 +3,13 @@
 
 #include <stdint.h>
 
+#define AIFF_FOURCC_FORM IFF_FOURCC('F', 'O', 'R', 'M')
+#define AIFF_FOURCC_AIFF IFF_FOURCC('A', 'I', 'F', 'F')
+#define AIFF_FOURCC_COMM IFF_FOURCC('C', 'O', 'M', 'M')
+#define AIFF_FOURCC_SSND IFF_FOURCC('S', 'S', 'N', 'D')
+#define AIFF_FOURCC_MARK IFF_FOURCC('M', 'A', 'R', 'K')
+#define AIFF_FOURCC_INST IFF_FOURCC('I', 'N', 'S', 'T')
+
 typedef struct
 {
 	uint16_t signExponent;

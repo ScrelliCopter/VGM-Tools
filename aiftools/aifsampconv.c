@@ -11,9 +11,9 @@
 #include <float.h>
 
 
-static inline void writeFourCC(StreamHandle hnd, char fourcc[4])
+static inline void writeFourCC(StreamHandle hnd, IffFourCC fourcc)
 {
-	streamWrite(hnd, (const void*)fourcc, 1, 4);
+	streamWrite(hnd, (const void*)fourcc.c, 1, 4);
 }
 
 static extended extendedPrecisionFromUInt64(uint64_t value)
@@ -98,16 +98,16 @@ int main(int argc, char** argv)
 
 	// Read & verify header
 	RiffChunk riff;
-	RiffFourCC filetype;
+	IffFourCC filetype;
 	streamRead(in, riff.fourcc.c, 1, 4);
 	streamReadU32le(in, &riff.size, 1);
 	streamRead(in, filetype.c,    1, 4);
 
-	if (!WAVE_FOURCC_CMP(riff.fourcc, FOURCC_RIFF))
+	if (!IFF_FOURCC_CMP(riff.fourcc, WAVE_FOURCC_RIFF))
 		return 1;
 	if (riff.size < FORMAT_CHUNK_SIZE)
 		return 1;
-	if (!WAVE_FOURCC_CMP(filetype, FOURCC_WAVE))
+	if (!IFF_FOURCC_CMP(filetype, WAVE_FOURCC_WAVE))
 		return 1;
 
 	FormatChunk fmt;
@@ -124,7 +124,7 @@ int main(int argc, char** argv)
 		streamRead(in, &chunk.fourcc, 1, 4);
 		streamReadU32le(in, &chunk.size, 1);
 
-		if (WAVE_FOURCC_CMP(chunk.fourcc, FOURCC_FORM))
+		if (IFF_FOURCC_CMP(chunk.fourcc, WAVE_FOURCC_FMT))
 		{
 			if (chunk.size != FORMAT_CHUNK_SIZE)
 				return 1;
@@ -137,7 +137,7 @@ int main(int argc, char** argv)
 			streamReadU16le(in, &fmt.bitdepth, 1);
 
 		}
-		else if (WAVE_FOURCC_CMP(chunk.fourcc, FOURCC_SAMP))
+		else if (IFF_FOURCC_CMP(chunk.fourcc, WAVE_FOURCC_SMPL))
 		{
 			if (chunk.size < SMPL_CHUNK_HEAD_SIZE)
 				return 1;
@@ -182,7 +182,7 @@ int main(int argc, char** argv)
 
 			samplerPresent = true;
 		}
-		else if (WAVE_FOURCC_CMP(chunk.fourcc, FOURCC_DATA))
+		else if (IFF_FOURCC_CMP(chunk.fourcc, WAVE_FOURCC_DATA))
 		{
 			if (streamTell(in, &dataOffset))
 			{
@@ -296,12 +296,12 @@ int main(int argc, char** argv)
 		formSize += 8 + AIFF_INSTRUMENT_SIZE;
 
 	// Write FORM header
-	writeFourCC(out, "FORM");
+	writeFourCC(out, AIFF_FOURCC_FORM);
 	streamWriteU32be(out, (uint32_t)formSize);
-	writeFourCC(out, "AIFF");
+	writeFourCC(out, AIFF_FOURCC_AIFF);
 
 	// Write Common chunk
-	writeFourCC(out, "COMM");
+	writeFourCC(out, AIFF_FOURCC_COMM);
 	streamWriteU32be(out, AIFF_COMMON_SIZE);
 	streamWriteI16be(out, common.numChannels);
 	streamWriteU32be(out, common.numSampleFrames);
@@ -309,7 +309,7 @@ int main(int argc, char** argv)
 	writeExtendedBe(out, common.sampleRate);
 
 	// Write Sound Data chunk & audio data
-	writeFourCC(out, "SSND");
+	writeFourCC(out, AIFF_FOURCC_SSND);
 	const uint32_t ssndChunkSize = AIFF_SOUNDDATAHEADER_SIZE + (uint32_t)dataBytes;
 	streamWriteU32be(out, ssndChunkSize);
 	streamWriteU32be(out, soundData.offset);
@@ -362,7 +362,7 @@ int main(int argc, char** argv)
 	// Write Marker chunk & markers
 	if (numMarkers)
 	{
-		writeFourCC(out, "MARK");
+		writeFourCC(out, AIFF_FOURCC_MARK);
 		streamWriteU32be(out, (uint32_t)markerChunkSz);
 		streamWriteU16be(out, (uint16_t)numMarkers);
 		for (int i = 0; i < numMarkers; ++i)
@@ -377,7 +377,7 @@ int main(int argc, char** argv)
 	// Write Instrument chunk
 	if (samplerPresent)
 	{
-		writeFourCC(out, "INST");
+		writeFourCC(out, AIFF_FOURCC_INST);
 		streamWriteU32be(out, AIFF_INSTRUMENT_SIZE);
 		streamWrite(out, &instrument.baseNote, 1, 1);
 		streamWrite(out, &instrument.detune, 1, 1);

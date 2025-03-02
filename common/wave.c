@@ -5,12 +5,12 @@
 #include "endian.h"
 
 
-static void writeFourcc(StreamHandle hnd, RiffFourCC fourcc)
+static void writeFourcc(StreamHandle hnd, IffFourCC fourcc)
 {
 	streamWrite(hnd, fourcc.c, 1, 4);
 }
 
-void writeRiffChunk(StreamHandle hnd, RiffFourCC fourcc, uint32_t size)
+void writeRiffChunk(StreamHandle hnd, IffFourCC fourcc, uint32_t size)
 {
 	writeFourcc(hnd, fourcc);
 	streamWriteU32le(hnd, size);
@@ -18,7 +18,7 @@ void writeRiffChunk(StreamHandle hnd, RiffFourCC fourcc, uint32_t size)
 
 void writeFormatChunk(StreamHandle hnd, const FormatChunk* fmt)
 {
-	writeRiffChunk(hnd, FOURCC_FORM, FORMAT_CHUNK_SIZE);
+	writeRiffChunk(hnd, WAVE_FOURCC_FMT, FORMAT_CHUNK_SIZE);
 	streamWriteU16le(hnd, fmt->format);
 	streamWriteU16le(hnd, fmt->channels);
 	streamWriteU32le(hnd, fmt->samplerate);
@@ -40,8 +40,8 @@ static int waveWriteHeader(const WaveSpec* spec, size_t dataLen, StreamHandle hn
 		return 1;
 
 	// write riff container
-	writeRiffChunk(hnd, FOURCC_RIFF, sizeof(uint32_t) * 5 + FORMAT_CHUNK_SIZE + (uint32_t)dataLen);
-	writeFourcc(hnd, FOURCC_WAVE);
+	writeRiffChunk(hnd, WAVE_FOURCC_RIFF, sizeof(uint32_t) * 5 + FORMAT_CHUNK_SIZE + (uint32_t)dataLen);
+	writeFourcc(hnd, WAVE_FOURCC_WAVE);
 
 	writeFormatChunk(hnd, &(const FormatChunk)
 	{
@@ -54,7 +54,7 @@ static int waveWriteHeader(const WaveSpec* spec, size_t dataLen, StreamHandle hn
 	});
 
 	// write data chunk
-	writeFourcc(hnd, FOURCC_DATA);
+	writeFourcc(hnd, WAVE_FOURCC_DATA);
 	streamWriteU32le(hnd, (uint32_t)dataLen);
 
 	return 0;

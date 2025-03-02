@@ -2,28 +2,20 @@
 #define WAVEDEFS_H
 
 #include <stdint.h>
+#include "iff.h"
 
-typedef union
-{
-	char c[4];
-	uint32_t i;
-} RiffFourCC;
+#define WAVE_FOURCC_RIFF IFF_FOURCC('R', 'I', 'F', 'F')
+#define WAVE_FOURCC_WAVE IFF_FOURCC('W', 'A', 'V', 'E')
+#define WAVE_FOURCC_FMT  IFF_FOURCC('f', 'm', 't', ' ')
+#define WAVE_FOURCC_DATA IFF_FOURCC('d', 'a', 't', 'a')
 
-#define WAVE_FOURCC(A, B, C, D) (RiffFourCC){ .c = { A, B, C, D } }
-#define WAVE_FOURCC_CMP(L, R) ((L).i == (R).i)
-
-#define FOURCC_RIFF WAVE_FOURCC('R', 'I', 'F', 'F')
-#define FOURCC_WAVE WAVE_FOURCC('W', 'A', 'V', 'E')
-#define FOURCC_FORM WAVE_FOURCC('f', 'm', 't', ' ')
-#define FOURCC_DATA WAVE_FOURCC('d', 'a', 't', 'a')
-
-#define FOURCC_SAMP WAVE_FOURCC('s', 'm', 'p', 'l')
-//#define FOURCC_INST WAVE_FOURCC('i', 'n', 's', 't')
+#define WAVE_FOURCC_SMPL IFF_FOURCC('s', 'm', 'p', 'l')
+//#define WAVE_FOURCC_INST IFF_FOURCC('i', 'n', 's', 't')
 
 typedef struct
 {
-	RiffFourCC fourcc;
-	uint32_t   size;
+	IffFourCC fourcc;
+	uint32_t  size;
 
 } RiffChunk;
 
