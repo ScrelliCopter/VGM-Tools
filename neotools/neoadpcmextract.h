@@ -15,8 +15,12 @@ bool bufferResize(Buffer* buf, size_t size);
 int vgmReadSample(StreamHandle fin, Buffer* restrict buf);
 int vgmScanSample(StreamHandle file);
 
+#ifdef USE_ZLIB
 int streamGzFileOpen(StreamHandle* restrict outHnd,
 	const char* restrict path,
 	const char* restrict mode);
+#else
+# define streamGzFileOpen streamFileOpen
+#endif
 
 #endif//NEOADPCMEXTRACT_H

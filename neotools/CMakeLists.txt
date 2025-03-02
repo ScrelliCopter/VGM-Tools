@@ -15,7 +15,7 @@ target_compile_options(adpcmb PRIVATE ${WARNINGS})
 target_link_libraries(adpcmb Common::wave)
 
 add_executable(neoadpcmextract
-	gzstreamfile.c
+	$<$<BOOL:${USE_ZLIB}>:gzstreamfile.c>
 	libadpcma.c adpcm.h
 	libadpcmb.c adpcmb.h
 	neoadpcmextract.c)
