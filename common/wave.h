@@ -5,9 +5,7 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <stddef.h>
+#include "stream.h"
 
 typedef enum
 {
@@ -26,28 +24,9 @@ typedef struct
 	int        bytedepth;
 } WaveSpec;
 
-typedef enum
-{
-	WAVE_SEEK_SET = 0, // From start of file
-	WAVE_SEEK_CUR = 1, // From current position in file
-	WAVE_SEEK_END = 2  // From EOF
-} WaveStreamWhence;
-
-typedef struct
-{
-	size_t (*read)(void* restrict user, void* restrict out, size_t size, size_t num);
-	size_t (*write)(void* restrict user, const void* restrict src, size_t size, size_t num);
-	void   (*seek)(void* restrict user, long offset, WaveStreamWhence whence);
-	bool   (*tell)(void* restrict user, size_t* restrict result);
-	bool   (*eof)(void* restrict user);
-	bool   (*error)(void* restrict user);
-} WaveStreamCb;
-
-extern const WaveStreamCb waveStreamDefaultCb;
-
-int waveWrite(const WaveSpec* spec, const void* data, size_t dataLen, const WaveStreamCb* cb, void* user);
+int waveWrite(const WaveSpec* spec, const void* data, size_t dataLen, StreamHandle hnd);
 int waveWriteFile(const WaveSpec* spec, const void* data, size_t dataLen, const char* path);
-int waveWriteBlock(const WaveSpec* spec, const void* blocks[], size_t blockLen, const WaveStreamCb* cb, void* user);
+int waveWriteBlock(const WaveSpec* spec, const void* blocks[], size_t blockLen, StreamHandle hnd);
 int waveWriteBlockFile(const WaveSpec* spec, const void* blocks[], size_t blockLen, const char* path);
 
 #ifdef __cplusplus

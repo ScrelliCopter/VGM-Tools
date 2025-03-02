@@ -38,8 +38,8 @@ static int decode(const char* inPath, const char* outPath, uint32_t sampleRate)
 	uint8_t* adpcmData = malloc(BUFFER_SIZE);
 	int16_t* wavData   = malloc(BUFFER_SIZE * 2 * sizeof(int16_t));
 
-	FILE* outFile = fopen(outPath, "wb");
-	if (outFile == NULL)
+	StreamHandle outFile;
+	if (streamFileOpen(&outFile, outPath, "wb"))
 	{
 		printf("Error opening output file!\n");
 		free(wavData);
@@ -56,7 +56,7 @@ static int decode(const char* inPath, const char* outPath, uint32_t sampleRate)
 		.rate      = sampleRate ? sampleRate : 22050,
 		.bytedepth = 2
 	},
-	NULL, (size_t)adpcmSize * 2 * sizeof(int16_t), &waveStreamDefaultCb, outFile);
+	NULL, (size_t)adpcmSize * 2 * sizeof(int16_t), outFile);
 
 	printf("Decoding ...");
 	AdpcmBDecoderState decoder;
@@ -67,12 +67,12 @@ static int decode(const char* inPath, const char* outPath, uint32_t sampleRate)
 		if ((read = fread(adpcmData, 1, BUFFER_SIZE, inFile)) > 0)
 		{
 			adpcmBDecode(&decoder, adpcmData, wavData, read);
-			fwrite(wavData, sizeof(int16_t), read * 2, outFile);
+			streamWrite(outFile, wavData, sizeof(int16_t), read * 2);
 		}
 	}
 	while (read == BUFFER_SIZE);
 	printf("  OK\n");
-	fclose(outFile);
+	streamClose(outFile);
 
 	free(wavData);
 	free(adpcmData);
@@ -82,12 +82,12 @@ static int decode(const char* inPath, const char* outPath, uint32_t sampleRate)
 }
 
 typedef struct waveformat_tag {
-    uint16_t wFormatTag;        /* format type */
-    uint16_t nChannels;         /* number of channels (i.e. mono, stereo...) */
-    uint32_t nSamplesPerSec;    /* sample rate */
-    uint32_t nAvgBytesPerSec;   /* for buffer estimation */
-    uint16_t nBlockAlign;       /* block size of data */
-    uint16_t wBitsPerSample;
+	uint16_t wFormatTag;        /* format type */
+	uint16_t nChannels;         /* number of channels (i.e. mono, stereo...) */
+	uint32_t nSamplesPerSec;    /* sample rate */
+	uint32_t nAvgBytesPerSec;   /* for buffer estimation */
+	uint16_t nBlockAlign;       /* block size of data */
+	uint16_t wBitsPerSample;
 } WAVEFORMAT;
 
 typedef struct

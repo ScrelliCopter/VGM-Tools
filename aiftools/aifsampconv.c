@@ -11,52 +11,9 @@
 #include <float.h>
 
 
-static inline size_t readU32le(void* restrict user, const WaveStreamCb* restrict cb, uint32_t* restrict v)
+static inline void writeFourCC(StreamHandle hnd, char fourcc[4])
 {
-	size_t res = cb->read(user, v, sizeof(uint32_t), 1);
-	(*v) = SWAP_LE32(*v);
-	return res;
-}
-
-static inline size_t readI32le(void* restrict user, const WaveStreamCb* restrict cb, int32_t* restrict v)
-{
-	size_t res = cb->read(user, v, sizeof(int32_t), 1);
-	(*v) = SWAP_LE32(*v);
-	return res;
-}
-
-static inline size_t readU16le(void* restrict user, const WaveStreamCb* restrict cb, uint16_t* restrict v)
-{
-	size_t res = cb->read(user, v, sizeof(uint16_t), 1);
-	(*v) = SWAP_LE16(*v);
-	return res;
-}
-
-static inline void writeFourCC(FILE* restrict out, char fourcc[4])
-{
-	fwrite((const void*)fourcc, 1, 4, out);
-}
-
-static inline void writeU32be(FILE* restrict out, uint32_t v)
-{
-	v = SWAP_BE32(v);
-	fwrite((const void*)&v, 4, 1, out);
-}
-
-static inline void writeI32be(FILE* restrict out, int32_t v)
-{
-	writeU32be(out, (uint32_t)v);
-}
-
-static inline void writeU16be(FILE* restrict out, uint16_t v)
-{
-	v = SWAP_BE16(v);
-	fwrite((const void*)&v, 2, 1, out);
-}
-
-static inline void writeI16be(FILE* restrict out, int16_t v)
-{
-	writeU16be(out, (uint16_t)v);
+	streamWrite(hnd, (const void*)fourcc, 1, 4);
 }
 
 static extended extendedPrecisionFromUInt64(uint64_t value)
@@ -101,21 +58,21 @@ static void packExtended(uint8_t out[10], extended ext)
 	memcpy(&out[2], (const void*)&mantissa, 8);
 }
 
-static inline void writeExtendedBe(FILE* restrict out, extended v)
+static inline void writeExtendedBe(StreamHandle out, extended v)
 {
 	uint8_t packed[10];
 	packExtended(packed, v);
-	fwrite(packed, 10, 1, out);
+	streamWrite(out, packed, 10, 1);
 }
 
-static void writePascalString(FILE* restrict out, const char* const restrict string)
+static void writePascalString(StreamHandle out, const char* const restrict string)
 {
 	size_t len = MIN(0xFF, strlen(string));
 	uint8_t byte = (uint8_t)len;
-	fwrite(&byte, 1, 1, out);     // Length byte
-	fwrite(string, 1, len, out);  // String data
-	if ((len + 1) & 0x1)          // AIFF Pascal-style strings are even byte padded
-		fputc('\0', out);
+	streamWrite(out, &byte, 1, 1);     // Length byte
+	streamWrite(out, string, 1, len);  // String data
+	if ((len + 1) & 0x1)               // AIFF Pascal-style strings are even byte padded
+		streamPutC(out, '\0');
 }
 
 static AIFFMarkerPlayMode aiffPlayModeFromSmplLoopType(SamplerLoopType type)
@@ -131,22 +88,20 @@ static AIFFMarkerPlayMode aiffPlayModeFromSmplLoopType(SamplerLoopType type)
 
 int main(int argc, char** argv)
 {
-	WaveStreamCb cb = waveStreamDefaultCb;
-
 	//FIXME: real CLI
 	if (argc < 1)
 		return 1;
 	const char* inName = argv[1];
-	void* in = fopen(inName, "rb");
-	if (!in)
+	StreamHandle in;
+	if (streamFileOpen(&in, inName, "rb"))
 		return 1;
 
 	// Read & verify header
 	RiffChunk riff;
 	RiffFourCC filetype;
-	cb.read(in, riff.fourcc.c, 1, 4);
-	readU32le(in, &cb, &riff.size);
-	cb.read(in, filetype.c,    1, 4);
+	streamRead(in, riff.fourcc.c, 1, 4);
+	streamReadU32le(in, &riff.size, 1);
+	streamRead(in, filetype.c,    1, 4);
 
 	if (!WAVE_FOURCC_CMP(riff.fourcc, FOURCC_RIFF))
 		return 1;
@@ -166,20 +121,20 @@ int main(int argc, char** argv)
 	{
 		RiffChunk chunk;
 		memset(&chunk, 0, sizeof(RiffChunk));
-		cb.read(in, &chunk.fourcc, 1, 4);
-		readU32le(in, &cb, &chunk.size);
+		streamRead(in, &chunk.fourcc, 1, 4);
+		streamReadU32le(in, &chunk.size, 1);
 
 		if (WAVE_FOURCC_CMP(chunk.fourcc, FOURCC_FORM))
 		{
 			if (chunk.size != FORMAT_CHUNK_SIZE)
 				return 1;
 
-			readU16le(in, &cb, &fmt.format);
-			readU16le(in, &cb, &fmt.channels);
-			readU32le(in, &cb, &fmt.samplerate);
-			readU32le(in, &cb, &fmt.byterate);
-			readU16le(in, &cb, &fmt.alignment);
-			readU16le(in, &cb, &fmt.bitdepth);
+			streamReadU16le(in, &fmt.format, 1);
+			streamReadU16le(in, &fmt.channels, 1);
+			streamReadU32le(in, &fmt.samplerate, 1);
+			streamReadU32le(in, &fmt.byterate, 1);
+			streamReadU16le(in, &fmt.alignment, 1);
+			streamReadU16le(in, &fmt.bitdepth, 1);
 
 		}
 		else if (WAVE_FOURCC_CMP(chunk.fourcc, FOURCC_SAMP))
@@ -187,15 +142,15 @@ int main(int argc, char** argv)
 			if (chunk.size < SMPL_CHUNK_HEAD_SIZE)
 				return 1;
 
-			readU32le(in, &cb, &smpl.manufacturer);
-			readU32le(in, &cb, &smpl.product);
-			readI32le(in, &cb, &smpl.samplePeriod);
-			readI32le(in, &cb, &smpl.midiUnityNote);
-			readI32le(in, &cb, &smpl.midiPitchFrac);
-			readI32le(in, &cb, &smpl.smpteFormat);
-			readU32le(in, &cb, &smpl.smpteOffset);
-			readU32le(in, &cb, &smpl.sampleLoopCount);
-			readU32le(in, &cb, &smpl.sampleData);
+			streamReadU32le(in, &smpl.manufacturer, 1);
+			streamReadU32le(in, &smpl.product, 1);
+			streamReadI32le(in, &smpl.samplePeriod, 1);
+			streamReadI32le(in, &smpl.midiUnityNote, 1);
+			streamReadI32le(in, &smpl.midiPitchFrac, 1);
+			streamReadI32le(in, &smpl.smpteFormat, 1);
+			streamReadU32le(in, &smpl.smpteOffset, 1);
+			streamReadU32le(in, &smpl.sampleLoopCount, 1);
+			streamReadU32le(in, &smpl.sampleData, 1);
 
 			const size_t loopsinc = SMPL_CHUNK_HEAD_SIZE + smpl.sampleLoopCount * SAMPLER_LOOP_SIZE;
 			if (chunk.size < loopsinc)
@@ -205,12 +160,12 @@ int main(int argc, char** argv)
 			SampleLoopChunk loop;
 			for (uint32_t i = 0; i < smpl.sampleLoopCount; ++i)
 			{
-				readU32le(in, &cb, &loop.id);
-				readU32le(in, &cb, &loop.type);
-				readU32le(in, &cb, &loop.loopStart);
-				readU32le(in, &cb, &loop.loopEnd);
-				readU32le(in, &cb, &loop.fraction);
-				readU32le(in, &cb, &loop.playCount);
+				streamReadU32le(in, &loop.id, 1);
+				streamReadU32le(in, &loop.type, 1);
+				streamReadU32le(in, &loop.loopStart, 1);
+				streamReadU32le(in, &loop.loopEnd, 1);
+				streamReadU32le(in, &loop.fraction, 1);
+				streamReadU32le(in, &loop.playCount, 1);
 				if (i < 2)
 					memcpy(&loops[i], &loop, sizeof(SampleLoopChunk));
 			}
@@ -222,41 +177,32 @@ int main(int argc, char** argv)
 				if (smpl.sampleData != loopsinc + chunk.size)
 					return 1;
 
-				cb.seek(in, smpl.sampleData, WAVE_SEEK_CUR);
+				streamSkip(in, smpl.sampleData);
 			}
 
 			samplerPresent = true;
 		}
 		else if (WAVE_FOURCC_CMP(chunk.fourcc, FOURCC_DATA))
 		{
-			if (cb.tell(in, &dataOffset))
+			if (streamTell(in, &dataOffset))
 			{
 				dataBytes = chunk.size;
-				cb.seek(in, dataBytes, WAVE_SEEK_CUR);
+				streamSkip(in, dataBytes);
 			}
 		}
 		else
 		{
-			cb.seek(in, chunk.size, WAVE_SEEK_CUR);
+			streamSkip(in, chunk.size);
 		}
 
 		bytes += sizeof(uint32_t) * 2 + chunk.size;
 		if (chunk.size & 0x1)
 		{
-			if (cb.seek)
-			{
-				cb.seek(in, 1, WAVE_SEEK_CUR);
-			}
-			else
-			{
-				uint8_t tmp;
-				cb.read(in, &tmp, 1, 1);
-			}
+			streamSkip(in, 1);
 			++bytes;
 		}
 
-		//TODO: check feof and ferr
-		if (cb.eof(in) || cb.error(in))
+		if (streamEOF(in) || streamError(in))
 			break;
 	}
 	while (bytes < riff.size);
@@ -267,10 +213,10 @@ int main(int argc, char** argv)
 		return 1;
 
 	const char* outName = argc > 2 ? argv[2] : "out.aif";
-	FILE* out = fopen(outName, "wb");
-	if (!out)
+	StreamHandle out;
+	if (streamFileOpen(&out, outName, "wb"))
 	{
-		fclose(in);
+		streamClose(in);
 		return 1;
 	}
 
@@ -351,31 +297,31 @@ int main(int argc, char** argv)
 
 	// Write FORM header
 	writeFourCC(out, "FORM");
-	writeU32be(out, (uint32_t)formSize);
+	streamWriteU32be(out, (uint32_t)formSize);
 	writeFourCC(out, "AIFF");
 
 	// Write Common chunk
 	writeFourCC(out, "COMM");
-	writeU32be(out, AIFF_COMMON_SIZE);
-	writeI16be(out, common.numChannels);
-	writeU32be(out, common.numSampleFrames);
-	writeI16be(out, common.sampleSize);
+	streamWriteU32be(out, AIFF_COMMON_SIZE);
+	streamWriteI16be(out, common.numChannels);
+	streamWriteU32be(out, common.numSampleFrames);
+	streamWriteI16be(out, common.sampleSize);
 	writeExtendedBe(out, common.sampleRate);
 
 	// Write Sound Data chunk & audio data
 	writeFourCC(out, "SSND");
 	const uint32_t ssndChunkSize = AIFF_SOUNDDATAHEADER_SIZE + (uint32_t)dataBytes;
-	writeU32be(out, ssndChunkSize);
-	writeU32be(out, soundData.offset);
-	writeU32be(out, soundData.blockSize);
-	cb.seek(in, dataOffset, WAVE_SEEK_SET);
+	streamWriteU32be(out, ssndChunkSize);
+	streamWriteU32be(out, soundData.offset);
+	streamWriteU32be(out, soundData.blockSize);
+	streamSeek(in, dataOffset, STREAM_SEEK_SET);
 #define BLOCK_SIZE (1024 * 16)
 	uint8_t buffer[BLOCK_SIZE];
 	do
 	{
 		size_t bufferSize = MIN(BLOCK_SIZE, dataBytes);
 		size_t frames = bufferSize / byteDepth;
-		cb.read(in, buffer, byteDepth, frames);
+		size_t bytesRead = streamRead(in, buffer, byteDepth, frames);
 		if (byteDepth == 1)
 		{
 			// 8-bit samples are stored unsigned in WAVE for some reason,
@@ -406,24 +352,24 @@ int main(int argc, char** argv)
 			for (size_t i = 0; i < frames; ++i)
 				samples[i] = swap32(samples[i]);
 		}
-		fwrite(buffer, byteDepth, frames, out);
+		streamWrite(out, buffer, byteDepth, frames);
 		dataBytes -= bufferSize;
 	}
 	while (dataBytes > 0);
 	if (ssndChunkSize & 0x1)  // Pad uneven chunk as IFF requires
-		fputc('\0', out);
+		streamPutC(out, '\0');
 
 	// Write Marker chunk & markers
 	if (numMarkers)
 	{
 		writeFourCC(out, "MARK");
-		writeU32be(out, (uint32_t)markerChunkSz);
-		writeU16be(out, (uint16_t)numMarkers);
+		streamWriteU32be(out, (uint32_t)markerChunkSz);
+		streamWriteU16be(out, (uint16_t)numMarkers);
 		for (int i = 0; i < numMarkers; ++i)
 		{
 			const AIFFMarker* marker = &markers[i];
-			writeI16be(out, marker->id);
-			writeI32be(out, marker->position);
+			streamWriteI16be(out, marker->id);
+			streamWriteI32be(out, marker->position);
 			writePascalString(out, marker->name);
 		}
 	}
@@ -432,23 +378,23 @@ int main(int argc, char** argv)
 	if (samplerPresent)
 	{
 		writeFourCC(out, "INST");
-		writeU32be(out, AIFF_INSTRUMENT_SIZE);
-		fwrite(&instrument.baseNote, 1, 1, out);
-		fwrite(&instrument.detune, 1, 1, out);
-		fwrite(&instrument.lowNote, 1, 1, out);
-		fwrite(&instrument.highNote, 1, 1, out);
-		fwrite(&instrument.lowVelocity, 1, 1, out);
-		fwrite(&instrument.highVelocity, 1, 1, out);
-		writeI16be(out, instrument.gain);
-		writeI16be(out, instrument.sustainLoop.playMode);
-		writeI16be(out, instrument.sustainLoop.beginLoop);
-		writeI16be(out, instrument.sustainLoop.endLoop);
-		writeI16be(out, instrument.releaseLoop.playMode);
-		writeI16be(out, instrument.releaseLoop.beginLoop);
-		writeI16be(out, instrument.releaseLoop.endLoop);
+		streamWriteU32be(out, AIFF_INSTRUMENT_SIZE);
+		streamWrite(out, &instrument.baseNote, 1, 1);
+		streamWrite(out, &instrument.detune, 1, 1);
+		streamWrite(out, &instrument.lowNote, 1, 1);
+		streamWrite(out, &instrument.highNote, 1, 1);
+		streamWrite(out, &instrument.lowVelocity, 1, 1);
+		streamWrite(out, &instrument.highVelocity, 1, 1);
+		streamWriteI16be(out, instrument.gain);
+		streamWriteI16be(out, instrument.sustainLoop.playMode);
+		streamWriteI16be(out, instrument.sustainLoop.beginLoop);
+		streamWriteI16be(out, instrument.sustainLoop.endLoop);
+		streamWriteI16be(out, instrument.releaseLoop.playMode);
+		streamWriteI16be(out, instrument.releaseLoop.beginLoop);
+		streamWriteI16be(out, instrument.releaseLoop.endLoop);
 	}
 
-	fclose(in);
+	streamClose(in);
 
 	return 0;
 }

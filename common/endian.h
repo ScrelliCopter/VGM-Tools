@@ -1,6 +1,8 @@
 #ifndef COMMON_ENDIAN_H
 #define COMMON_ENDIAN_H
 
+#include <stdint.h>
+
 #if defined(__APPLE__) || defined(__FreeBSD__) || defined(__DragonFly__)
 # include <machine/endian.h>
 #elif defined(__linux__) || defined(__CYGWIN__) || defined(__OpenBSD__)

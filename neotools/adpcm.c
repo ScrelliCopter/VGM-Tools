@@ -26,8 +26,8 @@ int	main(int argc, char* argv[])
 		return -2;
 	}
 
-	FILE* outFile = fopen(argv[2], "wb");
-	if (!outFile)
+	StreamHandle outFile;
+	if (streamFileOpen(&outFile, argv[2], "wb"))
 	{
 		fprintf(stderr, "Could not open outputfile %s\n", argv[2]);
 		return -3;
@@ -62,7 +62,7 @@ int	main(int argc, char* argv[])
 		.rate      = 18500,
 		.bytedepth = 2
 	},
-	NULL, Filelen * 4, &waveStreamDefaultCb, outFile);
+	NULL, Filelen * 4, outFile);
 
 	// Convert ADPCM to PCM and write to wave
 	int bytesRead;
@@ -72,14 +72,14 @@ int	main(int argc, char* argv[])
 		if (bytesRead > 0)
 		{
 			adpcmADecode(&decoder, InputBuffer, OutputBuffer, bytesRead);
-			fwrite(OutputBuffer, bytesRead * 4, 1, outFile);
+			streamWrite(outFile, OutputBuffer, bytesRead * 4, 1);
 		}
 	}
 	while (bytesRead == BUFFER_SIZE);
 
 	free(OutputBuffer);
 	free(InputBuffer);
-	fclose(outFile);
+	streamClose(outFile);
 	fclose(inFile);
 
 	fprintf(stderr, "Done...\n");
