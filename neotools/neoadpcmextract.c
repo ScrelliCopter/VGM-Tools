@@ -46,7 +46,7 @@ int vgmScanSample(StreamHandle file)
 	// Scan for pcm headers
 	while (true)
 	{
-		if (file.cb->eof(file.user) || file.cb->error(file.user))
+		if (streamEOF(file) || streamError(file))
 			return 0;
 		if (streamGetC(file) != 0x67 || streamGetC(file) != 0x66)  // Match data block
 			continue;
