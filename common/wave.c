@@ -2,21 +2,15 @@
 
 #include "wave.h"
 #include "wavedefs.h"
-#include "endian.h"
 
 
-static void writeFourcc(StreamHandle hnd, IffFourCC fourcc)
+static void writeRiffChunk(StreamHandle hnd, IffFourCC fourcc, uint32_t size)
 {
 	streamWrite(hnd, fourcc.c, 1, 4);
-}
-
-void writeRiffChunk(StreamHandle hnd, IffFourCC fourcc, uint32_t size)
-{
-	writeFourcc(hnd, fourcc);
 	streamWriteU32le(hnd, size);
 }
 
-void writeFormatChunk(StreamHandle hnd, const FormatChunk* fmt)
+static void writeFormatChunk(StreamHandle hnd, const FormatChunk* fmt)
 {
 	writeRiffChunk(hnd, WAVE_FOURCC_FMT, FORMAT_CHUNK_SIZE);
 	streamWriteU16le(hnd, fmt->format);
@@ -32,20 +26,31 @@ static int waveWriteHeader(const WaveSpec* spec, size_t dataLen, StreamHandle hn
 	if (!spec || !dataLen || dataLen >= UINT32_MAX || !hnd.cb || !hnd.cb->write)
 		return 1;
 
-	if (spec->format != WAVE_FMT_PCM)
+	if (spec->format != WAVESPEC_FORMAT_PCM)
 		return 1;
 	if (spec->channels <= 0 || spec->channels >= INT16_MAX)
 		return 1;
-	if (spec->format == WAVE_FMT_PCM && (spec->bytedepth <= 0 || spec->bytedepth > 4))
+	if (spec->format == WAVESPEC_FORMAT_PCM && (spec->bytedepth <= 0 || spec->bytedepth > 4))
 		return 1;
 
 	// write riff container
-	writeRiffChunk(hnd, WAVE_FOURCC_RIFF, sizeof(uint32_t) * 5 + FORMAT_CHUNK_SIZE + (uint32_t)dataLen);
-	writeFourcc(hnd, WAVE_FOURCC_WAVE);
+	writeRiffChunk(hnd, FOURCC_RIFF, sizeof(uint32_t) * 5 + FORMAT_CHUNK_SIZE + (uint32_t)dataLen);
+	streamWrite(hnd, FOURCC_WAVE.c, 1, 4);
+
+	WAVEFmt sampleFmt;
+	switch (spec->format)
+	{
+		case WAVESPEC_FORMAT_PCM:
+			sampleFmt = WAVE_FMT_PCM;
+			break;
+		case WAVESPEC_FORMAT_FLOAT:
+			sampleFmt = WAVE_FMT_IEEE_FLOAT;
+			break;
+	}
 
 	writeFormatChunk(hnd, &(const FormatChunk)
 	{
-		.format     = spec->format,
+		.format     = sampleFmt,
 		.channels   = (uint16_t)spec->channels,
 		.samplerate = spec->rate,
 		.byterate   = spec->rate * spec->channels * spec->bytedepth,
@@ -54,7 +59,7 @@ static int waveWriteHeader(const WaveSpec* spec, size_t dataLen, StreamHandle hn
 	});
 
 	// write data chunk
-	writeFourcc(hnd, WAVE_FOURCC_DATA);
+	streamWrite(hnd, WAVE_FOURCC_DATA.c, 1, 4);
 	streamWriteU32le(hnd, (uint32_t)dataLen);
 
 	return 0;
@@ -62,6 +67,8 @@ static int waveWriteHeader(const WaveSpec* spec, size_t dataLen, StreamHandle hn
 
 int waveWrite(const WaveSpec* spec, const void* data, size_t dataLen, StreamHandle hnd)
 {
+	assert(spec);
+
 	// Write RIFF/Wave header and raw interleaved samples
 	int res = waveWriteHeader(spec, dataLen, hnd);
 	if (res)
@@ -75,8 +82,7 @@ int waveWrite(const WaveSpec* spec, const void* data, size_t dataLen, StreamHand
 
 int waveWriteBlock(const WaveSpec* spec, const void* blocks[], size_t blockLen, StreamHandle hnd)
 {
-	if (!blocks)
-		return 1;
+	assert(spec && blocks);
 
 	// Write RIFF/Wave header to file
 	int res = waveWriteHeader(spec, blockLen * spec->channels, hnd);

@@ -1,28 +1,30 @@
 #ifndef WAVEDEFS_H
 #define WAVEDEFS_H
 
-#include <stdint.h>
 #include "iff.h"
 
-#define WAVE_FOURCC_RIFF IFF_FOURCC('R', 'I', 'F', 'F')
-#define WAVE_FOURCC_WAVE IFF_FOURCC('W', 'A', 'V', 'E')
+#define FOURCC_WAVE IFF_FOURCC('W', 'A', 'V', 'E')
+
 #define WAVE_FOURCC_FMT  IFF_FOURCC('f', 'm', 't', ' ')
 #define WAVE_FOURCC_DATA IFF_FOURCC('d', 'a', 't', 'a')
 
 #define WAVE_FOURCC_SMPL IFF_FOURCC('s', 'm', 'p', 'l')
 //#define WAVE_FOURCC_INST IFF_FOURCC('i', 'n', 's', 't')
 
-typedef struct
+typedef uint16_t WAVEFmt;
+enum
 {
-	IffFourCC fourcc;
-	uint32_t  size;
-
-} RiffChunk;
+	WAVE_FMT_PCM        = 0x0001,
+	WAVE_FMT_IEEE_FLOAT = 0x0003,
+	WAVE_FMT_ALAW       = 0x0006,
+	WAVE_FMT_MULAW      = 0x0007,
+	WAVE_FMT_EXTENSIBLE = 0xFFFE	
+};
 
 #define FORMAT_CHUNK_SIZE 16
 typedef struct
 {
-	uint16_t format;
+	WAVEFmt format;
 	uint16_t channels;
 	uint32_t samplerate;
 	uint32_t byterate;

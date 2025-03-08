@@ -81,7 +81,7 @@ inline bool streamSkip(StreamHandle hnd, long offset)
 {
 	assert(hnd.cb);
 	if (hnd.cb->seek)
-		return hnd.cb->seek(hnd.user, 1, STREAM_SEEK_CUR);
+		return hnd.cb->seek(hnd.user, offset, STREAM_SEEK_CUR);
 	assert(hnd.cb->read);
 	uint8_t tmp;
 	for (long i = 0; i < offset; ++i)

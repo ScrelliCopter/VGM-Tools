@@ -74,7 +74,7 @@ int writeAdpcmA(int id, const Buffer* enc, Buffer* pcm)
 	const uint32_t decodedSize = enc->size * 2 * sizeof(short);
 	waveWrite(&(const WaveSpec)
 	{
-		.format    = WAVE_FMT_PCM,
+		.format    = WAVESPEC_FORMAT_PCM,
 		.channels  = 1,
 		.rate      = 18500,
 		.bytedepth = 2
@@ -111,7 +111,7 @@ int writeAdpcmB(int id, const Buffer* enc, Buffer* pcm)
 	const uint32_t decodedSize = enc->size * 2 * sizeof(short);
 	waveWrite(&(const WaveSpec)
 	{
-		.format    = WAVE_FMT_PCM,
+		.format    = WAVESPEC_FORMAT_PCM,
 		.channels  = 1,
 		.rate      = 22050,
 		.bytedepth = 2

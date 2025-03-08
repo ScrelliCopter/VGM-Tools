@@ -57,7 +57,7 @@ int	main(int argc, char* argv[])
 	// Write wave header
 	waveWrite(&(const WaveSpec)
 	{
-		.format    = WAVE_FMT_PCM,
+		.format    = WAVESPEC_FORMAT_PCM,
 		.channels  = 1,
 		.rate      = 18500,
 		.bytedepth = 2

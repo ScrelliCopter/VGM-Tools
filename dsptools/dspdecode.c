@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdbool.h>
 
+
 typedef struct
 {
 	uint32_t numSamples;
@@ -223,7 +224,7 @@ int main(int argc, char* argv[])
 
 		WaveSpec wav =
 		{
-			.format    = WAVE_FMT_PCM,
+			.format    = WAVESPEC_FORMAT_PCM,
 			.channels  = 2,
 			.rate      = left.rate,
 			.bytedepth = sizeof(int16_t)
@@ -238,7 +239,7 @@ int main(int argc, char* argv[])
 	{
 		WaveSpec wav =
 		{
-			.format    = WAVE_FMT_PCM,
+			.format    = WAVESPEC_FORMAT_PCM,
 			.channels  = 1,
 			.rate      = left.rate,
 			.bytedepth = sizeof(int16_t)

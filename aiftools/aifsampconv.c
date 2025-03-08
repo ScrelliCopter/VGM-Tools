@@ -1,7 +1,7 @@
 /* aifsampconv.c (c) 2025 a dinosaur (zlib) */
 
 #include "wave.h"
-#include "aiffdefs.h"
+#include "aiff.h"
 #include "wavedefs.h"
 #include "endian.h"
 #include "util.h"
@@ -10,70 +10,6 @@
 #include <stdio.h>
 #include <float.h>
 
-
-static inline void writeFourCC(StreamHandle hnd, IffFourCC fourcc)
-{
-	streamWrite(hnd, (const void*)fourcc.c, 1, 4);
-}
-
-static extended extendedPrecisionFromUInt64(uint64_t value)
-{
-	extended result = { .signExponent = 0, .mantissa = 0 };
-	if (fastPath(value))
-	{
-		unsigned leadingZeroes;
-#if defined(__has_builtin) && __has_builtin(__builtin_clz)
-		leadingZeroes = __builtin_clzl(value);
-#else
-		for (leadingZeroes = 0; ((value << leadingZeroes) & 0x1UL << 63) == 0; ++leadingZeroes);
-#endif
-		result.signExponent = 63 - (uint16_t)leadingZeroes + 0x3FFF;
-		result.mantissa = value << leadingZeroes;
-	}
-	return result;
-}
-
-static extended extendedPrecisionFromUInt32(uint32_t value)
-{
-	extended result = { .signExponent = 0, .mantissa = 0 };
-	if (fastPath(value))
-	{
-		unsigned leadingZeroes;
-#if defined(__has_builtin) && __has_builtin(__builtin_clz)
-		leadingZeroes = __builtin_clz(value);
-#else
-		for (leadingZeroes = 0; ((value << leadingZeroes) & 0x1 << 31) == 0; ++leadingZeroes);
-#endif
-		result.signExponent = 31 - (uint16_t)leadingZeroes + 0x3FFF;
-		result.mantissa = ((uint64_t)value << 32) << leadingZeroes;
-	}
-	return result;
-}
-
-static void packExtended(uint8_t out[10], extended ext)
-{
-	uint16_t signExp  = SWAP_BE16(ext.signExponent);
-	uint64_t mantissa = SWAP_BE64(ext.mantissa);
-	memcpy(&out[0], (const void*)&signExp,  2);
-	memcpy(&out[2], (const void*)&mantissa, 8);
-}
-
-static inline void writeExtendedBe(StreamHandle out, extended v)
-{
-	uint8_t packed[10];
-	packExtended(packed, v);
-	streamWrite(out, packed, 10, 1);
-}
-
-static void writePascalString(StreamHandle out, const char* const restrict string)
-{
-	size_t len = MIN(0xFF, strlen(string));
-	uint8_t byte = (uint8_t)len;
-	streamWrite(out, &byte, 1, 1);     // Length byte
-	streamWrite(out, string, 1, len);  // String data
-	if ((len + 1) & 0x1)               // AIFF Pascal-style strings are even byte padded
-		streamPutC(out, '\0');
-}
 
 static AIFFMarkerPlayMode aiffPlayModeFromSmplLoopType(SamplerLoopType type)
 {
@@ -97,17 +33,17 @@ int main(int argc, char** argv)
 		return 1;
 
 	// Read & verify header
-	RiffChunk riff;
+	IffChunk riff;
 	IffFourCC filetype;
 	streamRead(in, riff.fourcc.c, 1, 4);
 	streamReadU32le(in, &riff.size, 1);
 	streamRead(in, filetype.c,    1, 4);
 
-	if (!IFF_FOURCC_CMP(riff.fourcc, WAVE_FOURCC_RIFF))
+	if (!IFF_FOURCC_CMP(riff.fourcc, FOURCC_RIFF))
 		return 1;
 	if (riff.size < FORMAT_CHUNK_SIZE)
 		return 1;
-	if (!IFF_FOURCC_CMP(filetype, WAVE_FOURCC_WAVE))
+	if (!IFF_FOURCC_CMP(filetype, FOURCC_WAVE))
 		return 1;
 
 	FormatChunk fmt;
@@ -119,8 +55,8 @@ int main(int argc, char** argv)
 	size_t bytes = 4;
 	do
 	{
-		RiffChunk chunk;
-		memset(&chunk, 0, sizeof(RiffChunk));
+		IffChunk chunk;
+		memset(&chunk, 0, sizeof(IffChunk));
 		streamRead(in, &chunk.fourcc, 1, 4);
 		streamReadU32le(in, &chunk.size, 1);
 
@@ -212,27 +148,17 @@ int main(int argc, char** argv)
 	if (fmt.bitdepth == 0 || fmt.bitdepth > 32)
 		return 1;
 
+	AIFFWriter writer;
 	const char* outName = argc > 2 ? argv[2] : "out.aif";
-	StreamHandle out;
-	if (streamFileOpen(&out, outName, "wb"))
+	if (aiffWriterFileOpen(&writer, outName))
 	{
 		streamClose(in);
 		return 1;
 	}
 
-	const uint32_t byteDepth = ((uint32_t)fmt.bitdepth + 7u) / 8u;  //TODO: Prob not correct for wave
+	const uint32_t byteDepth = AIFF_BITDEPTH_TO_BYTES((uint32_t)fmt.bitdepth);  //TODO: Prob not correct for wave
 	const uint32_t bytesPerFrame = byteDepth * (uint32_t)fmt.channels;
 	const size_t numFrames = dataBytes / bytesPerFrame;
-
-	AIFFCommon common;
-	common.numChannels     = (int16_t)fmt.channels;
-	common.numSampleFrames = (uint32_t)numFrames;
-	common.sampleSize      = (int16_t)fmt.bitdepth;
-	common.sampleRate      = extendedPrecisionFromUInt32(fmt.samplerate);
-
-	AIFFSoundDataHeader soundData;
-	soundData.offset    = 0U;
-	soundData.blockSize = 0U;
 
 	AIFFInstrument instrument;
 	int numMarkers = 0;
@@ -262,7 +188,7 @@ int main(int argc, char** argv)
 		if (smpl.sampleLoopCount > 1)
 		{
 			uint32_t loopStart = loops[loopIdx].loopStart;
-			uint32_t loopEnd = MIN(loops[loopIdx].loopEnd + 1, common.numSampleFrames);
+			uint32_t loopEnd = MIN(loops[loopIdx].loopEnd + 1U, (uint32_t)numFrames);
 			instrument.sustainLoop.playMode = aiffPlayModeFromSmplLoopType(loops[loopIdx++].type);
 			instrument.sustainLoop.beginLoop = loopMarkID;
 			markers[numMarkers++] = (AIFFMarker){ .id = loopMarkID++, .name = "beg sus", .position = loopStart };
@@ -272,7 +198,7 @@ int main(int argc, char** argv)
 		if (smpl.sampleLoopCount == 1 || (loops[loopIdx].loopEnd && loops[loopIdx].loopStart < loops[loopIdx].loopEnd))
 		{
 			uint32_t loopStart = loops[loopIdx].loopStart;
-			uint32_t loopEnd = MIN(loops[loopIdx].loopEnd + 1, common.numSampleFrames);
+			uint32_t loopEnd = MIN(loops[loopIdx].loopEnd + 1U, (uint32_t)numFrames);
 			instrument.releaseLoop.playMode = aiffPlayModeFromSmplLoopType(loops[loopIdx++].type);
 			instrument.releaseLoop.beginLoop = loopMarkID;
 			markers[numMarkers++] = (AIFFMarker){ .id = loopMarkID++, .name = "beg loop", .position = loopStart };
@@ -281,47 +207,36 @@ int main(int argc, char** argv)
 		}
 	}
 
-	// Calculate FORM chunk size
-	size_t markerChunkSz;
-	size_t formSize = 4 + 8 * 2 + AIFF_COMMON_SIZE + AIFF_SOUNDDATAHEADER_SIZE;
-	formSize += (uint32_t)dataBytes + (dataBytes & 0x1);
+	AIFFChunkFlags chunks = AIFF_CHUNKFLAGS_COMM | AIFF_CHUNKFLAGS_SSND;
+	AIFFChunkFlags last = AIFF_CHUNKFLAGS_SSND;
 	if (numMarkers)
 	{
-		markerChunkSz = 2;
-		for (int i = 0; i < numMarkers; ++i)
-			markerChunkSz += 6 + ((2 + strlen(markers[i].name)) & (SIZE_MAX - 1));
-		formSize += 8 + markerChunkSz;
+		chunks |= AIFF_CHUNKFLAGS_MARK;
+		last = AIFF_CHUNKFLAGS_MARK;
 	}
 	if (samplerPresent)
-		formSize += 8 + AIFF_INSTRUMENT_SIZE;
-
-	// Write FORM header
-	writeFourCC(out, AIFF_FOURCC_FORM);
-	streamWriteU32be(out, (uint32_t)formSize);
-	writeFourCC(out, AIFF_FOURCC_AIFF);
+	{
+		chunks |= AIFF_CHUNKFLAGS_INST;
+		last = AIFF_CHUNKFLAGS_INST;
+	}
+	aiffPrecalculateFormSize(&writer, chunks, last, markers, numMarkers, byteDepth, numFrames);
 
 	// Write Common chunk
-	writeFourCC(out, AIFF_FOURCC_COMM);
-	streamWriteU32be(out, AIFF_COMMON_SIZE);
-	streamWriteI16be(out, common.numChannels);
-	streamWriteU32be(out, common.numSampleFrames);
-	streamWriteI16be(out, common.sampleSize);
-	writeExtendedBe(out, common.sampleRate);
+	aiffWriteCommonChunk(&writer,
+		(int16_t)fmt.channels,
+		(uint32_t)numFrames,
+		(int16_t)fmt.bitdepth,
+		fmt.samplerate);
 
 	// Write Sound Data chunk & audio data
-	writeFourCC(out, AIFF_FOURCC_SSND);
-	const uint32_t ssndChunkSize = AIFF_SOUNDDATAHEADER_SIZE + (uint32_t)dataBytes;
-	streamWriteU32be(out, ssndChunkSize);
-	streamWriteU32be(out, soundData.offset);
-	streamWriteU32be(out, soundData.blockSize);
 	streamSeek(in, dataOffset, STREAM_SEEK_SET);
 #define BLOCK_SIZE (1024 * 16)
 	uint8_t buffer[BLOCK_SIZE];
 	do
 	{
-		size_t bufferSize = MIN(BLOCK_SIZE, dataBytes);
-		size_t frames = bufferSize / byteDepth;
-		size_t bytesRead = streamRead(in, buffer, byteDepth, frames);
+		const size_t bufferSize = MIN(BLOCK_SIZE, dataBytes);
+		const size_t frames = bufferSize / byteDepth;
+		const size_t bytesRead = streamRead(in, buffer, byteDepth, frames);
 		if (byteDepth == 1)
 		{
 			// 8-bit samples are stored unsigned in WAVE for some reason,
@@ -329,7 +244,7 @@ int main(int argc, char** argv)
 			for (size_t i = 0; i < frames; ++i)
 				buffer[i] ^= 0x80;
 		}
-		// WAVE stores 2-byte & larger samples in little endian, so we must
+		// WAVE stores >=2 byte samples in little endian, so we must
 		//  convert them to big-endian before writing them to AIFF.
 		else if (byteDepth == 2)
 		{
@@ -352,47 +267,20 @@ int main(int argc, char** argv)
 			for (size_t i = 0; i < frames; ++i)
 				samples[i] = swap32(samples[i]);
 		}
-		streamWrite(out, buffer, byteDepth, frames);
+		aiffWriteSoundFrames(&writer, buffer, byteDepth, frames);
 		dataBytes -= bufferSize;
 	}
 	while (dataBytes > 0);
-	if (ssndChunkSize & 0x1)  // Pad uneven chunk as IFF requires
-		streamPutC(out, '\0');
 
 	// Write Marker chunk & markers
 	if (numMarkers)
-	{
-		writeFourCC(out, AIFF_FOURCC_MARK);
-		streamWriteU32be(out, (uint32_t)markerChunkSz);
-		streamWriteU16be(out, (uint16_t)numMarkers);
-		for (int i = 0; i < numMarkers; ++i)
-		{
-			const AIFFMarker* marker = &markers[i];
-			streamWriteI16be(out, marker->id);
-			streamWriteI32be(out, marker->position);
-			writePascalString(out, marker->name);
-		}
-	}
+		aiffWriteMarkers(&writer, markers, numMarkers);
 
 	// Write Instrument chunk
 	if (samplerPresent)
-	{
-		writeFourCC(out, AIFF_FOURCC_INST);
-		streamWriteU32be(out, AIFF_INSTRUMENT_SIZE);
-		streamWrite(out, &instrument.baseNote, 1, 1);
-		streamWrite(out, &instrument.detune, 1, 1);
-		streamWrite(out, &instrument.lowNote, 1, 1);
-		streamWrite(out, &instrument.highNote, 1, 1);
-		streamWrite(out, &instrument.lowVelocity, 1, 1);
-		streamWrite(out, &instrument.highVelocity, 1, 1);
-		streamWriteI16be(out, instrument.gain);
-		streamWriteI16be(out, instrument.sustainLoop.playMode);
-		streamWriteI16be(out, instrument.sustainLoop.beginLoop);
-		streamWriteI16be(out, instrument.sustainLoop.endLoop);
-		streamWriteI16be(out, instrument.releaseLoop.playMode);
-		streamWriteI16be(out, instrument.releaseLoop.beginLoop);
-		streamWriteI16be(out, instrument.releaseLoop.endLoop);
-	}
+		aiffWriteInstrumentChunk(&writer, &instrument);
+
+	aiffWriterClose(&writer);
 
 	streamClose(in);
 

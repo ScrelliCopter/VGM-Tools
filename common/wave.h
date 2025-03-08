@@ -9,19 +9,16 @@ extern "C" {
 
 typedef enum
 {
-	WAVE_FMT_PCM        = 0x0001,
-	WAVE_FMT_IEEE_FLOAT = 0x0003,
-	WAVE_FMT_ALAW       = 0x0006,
-	WAVE_FMT_MULAW      = 0x0007,
-	WAVE_FMT_EXTENSIBLE = 0xFFFE
-} WaveFormat;
+	WAVESPEC_FORMAT_PCM   = 0x0001,
+	WAVESPEC_FORMAT_FLOAT = 0x0003
+} WaveSpecFormat;
 
 typedef struct
 {
-	WaveFormat format;
-	int        channels;
-	unsigned   rate;
-	int        bytedepth;
+	WaveSpecFormat format;
+	int            channels;
+	unsigned       rate;
+	int            bytedepth;
 } WaveSpec;
 
 int waveWrite(const WaveSpec* spec, const void* data, size_t dataLen, StreamHandle hnd);

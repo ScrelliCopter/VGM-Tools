@@ -1,14 +1,18 @@
 #ifndef AIFFDEFS_H
 #define AIFFDEFS_H
 
-#include <stdint.h>
+#include "iff.h"
 
-#define AIFF_FOURCC_FORM IFF_FOURCC('F', 'O', 'R', 'M')
-#define AIFF_FOURCC_AIFF IFF_FOURCC('A', 'I', 'F', 'F')
+#define FOURCC_AIFF IFF_FOURCC('A', 'I', 'F', 'F')
+
 #define AIFF_FOURCC_COMM IFF_FOURCC('C', 'O', 'M', 'M')
 #define AIFF_FOURCC_SSND IFF_FOURCC('S', 'S', 'N', 'D')
 #define AIFF_FOURCC_MARK IFF_FOURCC('M', 'A', 'R', 'K')
 #define AIFF_FOURCC_INST IFF_FOURCC('I', 'N', 'S', 'T')
+#define AIFF_FOURCC_MIDI IFF_FOURCC('M', 'I', 'D', 'I')
+#define AIFF_FOURCC_AESD IFF_FOURCC('A', 'E', 'S', 'D')
+#define AIFF_FOURCC_APPL IFF_FOURCC('A', 'P', 'P', 'L')
+#define AIFF_FOURCC_COMT IFF_FOURCC('C', 'O', 'M', 'T')
 
 typedef struct
 {

@@ -51,7 +51,7 @@ static int decode(const char* inPath, const char* outPath, uint32_t sampleRate)
 	// Write wave header
 	waveWrite(&(const WaveSpec)
 	{
-		.format    = WAVE_FMT_PCM,
+		.format    = WAVESPEC_FORMAT_PCM,
 		.channels  = 1,
 		.rate      = sampleRate ? sampleRate : 22050,
 		.bytedepth = 2
@@ -140,7 +140,7 @@ static int encode(const char* inPath, const char* outPath)
 	fseek(hFile, TempLng, SEEK_SET);
 
 	WAVEFORMAT* TempFmt = &WaveFile.fmt_Data;
-	if (TempFmt->wFormatTag != WAVE_FMT_PCM)
+	if (TempFmt->wFormatTag != WAVESPEC_FORMAT_PCM)
 	{
 		fclose(hFile);
 		printf("Error in wave file: Compressed wave file are not supported!\n");
