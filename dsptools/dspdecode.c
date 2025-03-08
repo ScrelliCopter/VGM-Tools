@@ -31,33 +31,6 @@ typedef struct
 
 } DspHeader;
 
-static void readBeU32(uint32_t* restrict dst, size_t count, FILE* restrict file)
-{
-	fread(dst, sizeof(uint32_t), count, file);
-#if BYTE_ORDER == LITTLE_ENDIAN
-	for (size_t i = 0; i < count; ++i)
-		dst[i] = swap32(dst[i]);
-#endif
-}
-
-static void readBeU16(uint16_t* restrict dst, size_t count, FILE* restrict file)
-{
-	fread(dst, sizeof(uint16_t), count, file);
-#if BYTE_ORDER == LITTLE_ENDIAN
-	for (size_t i = 0; i < count; ++i)
-		dst[i] = swap16(dst[i]);
-#endif
-}
-
-static void readBeS16(int16_t* restrict dst, size_t count, FILE* restrict file)
-{
-	fread(dst, sizeof(int16_t), count, file);
-#if BYTE_ORDER == LITTLE_ENDIAN
-	for (size_t i = 0; i < count; ++i)
-		dst[i] = (int16_t)swap16((uint16_t)dst[i]);
-#endif
-}
-
 typedef struct
 {
 	int16_t* pcm;
@@ -69,8 +42,8 @@ typedef struct
 
 static int loadDsp(const char* path, PcmFile* out)
 {
-	FILE* file = fopen(path, "rb");
-	if (!file)
+	StreamHandle file;
+	if (streamFileOpen(&file, path, "rb"))
 	{
 		fprintf(stderr, "File not found\n");
 		return 1;
@@ -80,23 +53,23 @@ static int loadDsp(const char* path, PcmFile* out)
 	out->pcm = NULL;
 
 	DspHeader dsp;
-	readBeU32(&dsp.numSamples,     1, file);
-	readBeU32(&dsp.numNibbles,     1, file);
-	readBeU32(&dsp.sampleRate,     1, file);
-	readBeU16(&dsp.loopFlag,       1, file);
-	readBeU16(&dsp.format,         1, file);
-	readBeU32(&dsp.loopBeg,        1, file);
-	readBeU32(&dsp.loopEnd,        1, file);
-	readBeU32(&dsp.curAddress,     1, file);
-	readBeS16(dsp.coefs,          16, file);
-	readBeU16(&dsp.gain,           1, file);
-	readBeU16(&dsp.predScale,      1, file);
-	readBeS16(dsp.history,         2, file);
-	readBeU16(&dsp.loopPredScale,  1, file);
-	readBeS16(dsp.loopHistory,     2, file);
-	readBeS16(&dsp.channels,       1, file);
-	readBeU16(&dsp.blockSize,      1, file);
-	readBeU16(dsp.reserved1,       9, file);
+	streamReadU32be(file, &dsp.numSamples,     1);
+	streamReadU32be(file, &dsp.numNibbles,     1);
+	streamReadU32be(file, &dsp.sampleRate,     1);
+	streamReadU16be(file, &dsp.loopFlag,       1);
+	streamReadU16be(file, &dsp.format,         1);
+	streamReadU32be(file, &dsp.loopBeg,        1);
+	streamReadU32be(file, &dsp.loopEnd,        1);
+	streamReadU32be(file, &dsp.curAddress,     1);
+	streamReadI16be(file, dsp.coefs,          16);
+	streamReadU16be(file, &dsp.gain,           1);
+	streamReadU16be(file, &dsp.predScale,      1);
+	streamReadI16be(file, dsp.history,         2);
+	streamReadU16be(file, &dsp.loopPredScale,  1);
+	streamReadI16be(file, dsp.loopHistory,     2);
+	streamReadI16be(file, &dsp.channels,       1);
+	streamReadU16be(file, &dsp.blockSize,      1);
+	streamReadU16be(file, dsp.reserved1,       9);
 
 	if (dsp.loopFlag > 1 || dsp.format)
 		goto Fail;
@@ -110,9 +83,8 @@ static int loadDsp(const char* path, PcmFile* out)
 	if (!out->pcm)
 		goto Fail;
 
-	fread(adpcm, 1, adpcmSize, file);
-	fclose(file);
-	file = NULL;
+	streamRead(file, adpcm, 1, adpcmSize);
+	streamClose(file);
 
 	ADPCMINFO adpcmInfo =
 	{
@@ -135,8 +107,7 @@ static int loadDsp(const char* path, PcmFile* out)
 Fail:
 	free(out->pcm);
 	free(adpcm);
-	if (file)
-		fclose(file);
+	streamClose(file);
 	return 1;
 }
 

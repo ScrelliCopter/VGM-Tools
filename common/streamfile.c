@@ -67,7 +67,8 @@ static bool streamFileError(void* restrict user)
 
 static void streamFileClose(void* restrict user)
 {
-	fclose((FILE*)user);
+	if (user)
+		fclose((FILE*)user);
 }
 
 static const StreamIoCb streamFileCb =
