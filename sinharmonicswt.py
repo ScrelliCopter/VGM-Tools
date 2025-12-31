@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name:        sinharmonicswt.py
-# Copyright:   © 2023 a dinosaur
+# Copyright:   © 2023, 2025 a dinosaur
 # Homepage:    https://github.com/ScrelliCopter/VGM-Tools
 # License:     Zlib (https://opensource.org/licenses/Zlib)
 # Description: Generate Serum format wavetables of the harmonic series
@@ -39,19 +39,41 @@ def main():
 			sample = clamp2short(math.sin(i / size * math.tau * harmonic))
 			yield sample.to_bytes(2, byteorder="little", signed=True)
 
-	#TODO: probably make bandlimited versions of the nonlinear waves
-	def hsinetable16(size: int, harmonic: int):
+	def hsinetable16(size: int, harmonic: int, bandlimit: bool = True):
 		# Generate one half of a sine wave with the negative pole hard clipped off
 		for i in range(size):
-			sample = clamp2short(max(0.0, math.sin(i / size * math.tau * harmonic)))
-			yield sample.to_bytes(2, byteorder="little", signed=True)
+			theta = math.tau * i / size
+			if not bandlimit:
+				y = max(0.0, math.sin(theta * harmonic)) - 1 / math.pi
+			else:
+				def harmonics():
+					n = 1
+					while True:
+						harm_freq = 2 * n * harmonic
+						if 2 * harm_freq > size:
+							break
+						yield math.cos(harm_freq * theta) / (4 * n * n - 1)
+						n += 1
+				y = math.sin(theta * harmonic) / 2 - 2 / math.pi * sum(harmonics())
+			yield clamp2short(y).to_bytes(2, byteorder="little", signed=True)
 
-	#TODO: probably make bandlimited versions of the nonlinear waves
-	def asinetable16(size: int, harmonic: int):
+	def asinetable16(size: int, harmonic: int, bandlimit: bool = True):
 		# Generate a sine wave with the negative pole mirrored positively
 		for i in range(size):
-			sample = clamp2short(math.fabs(math.sin(i / size * math.pi * harmonic)))
-			yield sample.to_bytes(2, byteorder="little", signed=True)
+			theta = math.pi * i / size
+			if not bandlimit:
+				y = math.fabs(math.sin(theta * harmonic)) - 2 / math.pi
+			else:
+				y = 0
+				n = 1
+				while True:
+					harm_freq = 2 * n * harmonic
+					if harm_freq > size:
+						break
+					y += math.cos(harm_freq * theta) / (4 * n * n - 1)
+					n += 1
+				y = -(4 / math.pi * y)
+			yield clamp2short(y).to_bytes(2, byteorder="little", signed=True)
 
 	outfolder = Path("FM Harmonics")
 	outfolder.mkdir(exist_ok=True)
