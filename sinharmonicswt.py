@@ -57,7 +57,7 @@ def main():
 				y = math.sin(theta * harmonic) / 2 - 2 / math.pi * sum(harmonics())
 			yield clamp2short(y).to_bytes(2, byteorder="little", signed=True)
 
-	def asinetable16(size: int, harmonic: int, bandlimit: bool = False):
+	def asinetable16(size: int, harmonic: int, bandlimit: bool = True):
 		# Generate a sine wave with the negative pole mirrored positively
 		for i in range(size):
 			theta = math.pi * i / size
