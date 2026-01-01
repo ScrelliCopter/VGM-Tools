@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Name:        sinharmonicswt.py
-# Copyright:   © 2023, 2025 a dinosaur
+# Copyright:   © 2023, 2025, 2026 a dinosaur
 # Homepage:    https://github.com/ScrelliCopter/VGM-Tools
 # License:     Zlib (https://opensource.org/licenses/Zlib)
 # Description: Generate Serum format wavetables of the harmonic series
@@ -57,7 +57,7 @@ def main():
 				y = math.sin(theta * harmonic) / 2 - 2 / math.pi * sum(harmonics())
 			yield clamp2short(y).to_bytes(2, byteorder="little", signed=True)
 
-	def asinetable16(size: int, harmonic: int, bandlimit: bool = True):
+	def asinetable16(size: int, harmonic: int, bandlimit: bool = False):
 		# Generate a sine wave with the negative pole mirrored positively
 		for i in range(size):
 			theta = math.pi * i / size
@@ -75,21 +75,64 @@ def main():
 				y = -(4 / math.pi * y)
 			yield clamp2short(y).to_bytes(2, byteorder="little", signed=True)
 
+	def squaretable16(size: int, harmonic: int, bandlimit: bool = True):
+		for i in range(size):
+			if not bandlimit:
+				y = 1 if math.fmod(harmonic * i / size, 1.0) < 0.5 else -1
+			else:
+				y = 0
+				n = 1
+				while True:
+					n2n1 = 2 * n - 1
+					harm_freq = n2n1 * harmonic
+					if 2 * harm_freq > size:
+						break
+					y += math.sin(math.tau * harm_freq * (i + 1) / size) / n2n1
+					n += 1
+				y *= 4 / math.pi
+			y *= 0.8
+			yield clamp2short(y).to_bytes(2, byteorder="little", signed=True)
+
+	def sawtable16(size: int, harmonic: int, bandlimit: bool = True):
+		offset = 1 / (2 * harmonic)
+		for i in range(size):
+			t = i / size
+			if not bandlimit:
+				y = math.fmod(2 * t * harmonic + 1, 2) - 1
+			else:
+				y = 0
+				n = 1
+				while True:
+					harm_freq = n * harmonic
+					if 2 * harm_freq > size:
+						break
+					y += math.sin(math.tau * harm_freq * (t + offset)) / n
+					n += 1
+				y = -(2 / math.pi * y)
+			y *= 0.8
+			yield clamp2short(y).to_bytes(2, byteorder="little", signed=True)
+
+
 	outfolder = Path("FM Harmonics")
 	outfolder.mkdir(exist_ok=True)
 
 	# Build queue of files to generate
 	GenItem = NamedTuple("GenItem", generator=any, steps=int, mode=SerumWavetableInterpolation, name=str)
 	genqueue: list[GenItem] = list()
-	# All waveform types with 64 harmonic steps in stepped and linear versions
-	for mode in [("", SerumWavetableInterpolation.NONE), (" (XFade)", SerumWavetableInterpolation.LINEAR_XFADE)]:
-		for generator in [("Sine", sinetable16), ("Half Sine", hsinetable16), ("Abs Sine", asinetable16)]:
+	# All waveform types with 64 harmonic steps with no interpolation
+	for mode in [("", SerumWavetableInterpolation.NONE)]:
+		for generator in [
+				("Sine", sinetable16),
+				("Half Sine", hsinetable16), ("Abs Sine", asinetable16),
+				("Square", squaretable16), ("Saw", sawtable16)]:
 			genqueue.append(GenItem(generator[1], 64, mode[1], f"{generator[0]} Harmonics{mode[0]}"))
-	# Shorter linear versions of hsine and asine
-	for steps in [8, 16, 32]:
+	# Shorter crossfaded versions of hsine, asine, square, and saw
+	for steps in [8, 16, 24, 32, 48]:
 		spec = SerumWavetableInterpolation.LINEAR_XFADE
-		for generator in [("Half Sine", hsinetable16), ("Abs Sine", asinetable16)]:
-			genqueue.append(GenItem(generator[1], steps, spec, f"{generator[0]} (XFade {steps})"))
+		for generator in [
+				("Half Sine", hsinetable16), ("Abs Sine", asinetable16),
+				("Square", squaretable16), ("Saw", sawtable16)]:
+			genqueue.append(GenItem(generator[1], steps, spec, f"{generator[0]} Harmonics (XFade {steps})"))
 
 	# Generate & write wavetables
 	for i in genqueue:
