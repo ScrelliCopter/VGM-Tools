@@ -75,6 +75,25 @@ def main():
 				y = -(4 / math.pi * y)
 			yield clamp2short(y).to_bytes(2, byteorder="little", signed=True)
 
+	def triangletable(size: int, harmonic: int, bandlimit: bool = True):
+		for i in range(size):
+			t = i / size
+			if not bandlimit:
+				phase = math.fmod(t * harmonic + 0.25, 1)
+				y = 4 * (phase if phase < 0.5 else 1 - phase) - 1
+			else:
+				y = 0
+				n = 0
+				while True:
+					n2a1 = 2 * n + 1
+					harm_freq = n2a1 * harmonic
+					if 2 * harm_freq > size:
+						break
+					y += math.pow(-1, n) / (n2a1 * n2a1) * math.sin(math.tau * harm_freq * t)
+					n += 1
+				y *= 8 / (math.pi * math.pi)
+			yield clamp2short(y).to_bytes(2, byteorder="little", signed=True)
+
 	def squaretable16(size: int, harmonic: int, bandlimit: bool = True):
 		for i in range(size):
 			if not bandlimit:
@@ -83,11 +102,11 @@ def main():
 				y = 0
 				n = 1
 				while True:
-					n2n1 = 2 * n - 1
-					harm_freq = n2n1 * harmonic
+					n2s1 = 2 * n - 1
+					harm_freq = n2s1 * harmonic
 					if 2 * harm_freq > size:
 						break
-					y += math.sin(math.tau * harm_freq * (i + 1) / size) / n2n1
+					y += math.sin(math.tau * harm_freq * (i + 1) / size) / n2s1
 					n += 1
 				y *= 4 / math.pi
 			y *= 0.8
@@ -122,14 +141,15 @@ def main():
 	# All waveform types with 64 harmonic steps with no interpolation
 	for mode in [("", SerumWavetableInterpolation.NONE)]:
 		for generator in [
-				("Sine", sinetable16),
+				("Sine", sinetable16), ("Triangle", triangletable),
 				("Half Sine", hsinetable16), ("Abs Sine", asinetable16),
 				("Square", squaretable16), ("Saw", sawtable16)]:
 			genqueue.append(GenItem(generator[1], 64, mode[1], f"{generator[0]} Harmonics{mode[0]}"))
-	# Shorter crossfaded versions of hsine, asine, square, and saw
+	# Shorter crossfaded versions of tri, hsine, asine, square, and saw
 	for steps in [8, 16, 24, 32, 48]:
 		spec = SerumWavetableInterpolation.LINEAR_XFADE
 		for generator in [
+				("Triangle", triangletable),
 				("Half Sine", hsinetable16), ("Abs Sine", asinetable16),
 				("Square", squaretable16), ("Saw", sawtable16)]:
 			genqueue.append(GenItem(generator[1], steps, spec, f"{generator[0]} Harmonics (XFade {steps})"))
